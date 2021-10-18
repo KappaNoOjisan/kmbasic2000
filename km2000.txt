@@ -1,0 +1,13 @@
+1. Porting.
+
+I ported "KMBASIC"; found from Twitter, to MZ2000 (CarryDOS).
+I've touched on this project quite a bit.
+At first, I planned to just replace the library function, but it is now a separated.
+
+
+2. License
+ see lgbl.txt
+
+10 REM
+20 REM I hope if SDCC were stable soon.
+30 REM                 kappa.no.ojisan
