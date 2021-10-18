@@ -6,7 +6,7 @@ At first, I planned to just replace the library function, but it is now a separa
 
 
 2. License
- see lgbl.txt
+ see lgpl.txt
 
 10 REM
 20 REM I hope if SDCC were stable soon.
