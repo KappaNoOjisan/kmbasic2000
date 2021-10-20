@@ -33,8 +33,6 @@ void init(void){
 	printUnsignedDec(g_lastMemory-g_firstMemory);
 	printStr(" BYTES FREE\x0D");
 	newLine();
-	//printHex16((int)&g_vardesc[0]);
-	newLine();
 	// Destroy program and clear all variables
 	newCode();
 	return;
@@ -92,8 +90,8 @@ char inputLine(void) __naked {
 
 }
 void main(void){
-	char e;
-	char* tempObject;
+	register char e;
+	register char* tempObject;
 	while(1){
 		while(1){
 			source=(char*)LINE_BUFFER;

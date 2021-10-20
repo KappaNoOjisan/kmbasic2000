@@ -638,13 +638,13 @@ char compileGoto(void){
 	if (g_lastMemory<=sourcePos) sourcePos=0;
 	copyByte(0x21);
 	copyInt((int)sourcePos);	// LD HL,#sourcePos
-	copyByte(0xCD);
-	copyInt((unsigned int)goTo);	// CALL goTo
+	copyByte(0xC3);
+	copyInt((unsigned int)goTo);	// JP goTo
 	return ERR_NOTHIN;
 }
 char compileGosub(void){
 	char e;
-	copyCode("\xCD\x34\x12\x18\x07",5); // CALL skip:; JR ret:; skip:
+	copyCode("\xCD\x34\x12\x18\x06",5); // CALL skip:; JR ret:; skip:
 	object++;
 	((unsigned int*)object)[0]=(unsigned int)object+4;
 	object+=4;
@@ -670,7 +670,7 @@ char compileRun(void){
 		// goTo(g_sourceMemory+3);
 		copyByte(0x21);
 		copyInt((int)g_sourceMemory+3);
-		copyByte(0xCd);
+		copyByte(0xC3);	//	JP _goTo;
 		copyInt((int)goTo);
 		return ERR_NOTHIN;
 	} else 
@@ -917,9 +917,9 @@ FUNCPTR seekList(char* slist) __naked {
 #pragma restore
 
 char compile(void) {
-	static char* slist;
-	static FUNCPTR sfunc;
-	static char e=ERR_NOTHIN;
+	register char* slist;
+	FUNCPTR sfunc;
+	register char e=ERR_NOTHIN;
 	g_ifElseJump=0;
 	slist=statementList();
 	while (skipBlank()!=0x00) {

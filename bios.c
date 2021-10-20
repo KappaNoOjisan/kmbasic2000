@@ -158,8 +158,8 @@ char callCode(int address) __naked {
 		jump:
 		jp (HL)
 		skip2:
-		ld h,5(iy)
-		ld l,4(iy)
+		ld l,2(iy)
+		ld h,3(iy)
 		call jump
 		ld l,#0
 		ret

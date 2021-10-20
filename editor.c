@@ -47,9 +47,10 @@ unsigned int getDecimal(void) __naked {
 
 +n+5  next line
 */
-char addCode(){
-	char e;
-	unsigned int lineNum, sourceStart, sourceLen, lineLen, lastSourceStart;
+char addCode(void){
+	static char e;
+	register unsigned int sourceStart;
+	unsigned int lineNum, sourceLen, lineLen, lastSourceStart;
 	// Clear memory to forget everything with allocated memory regions.
 	clearMemory();
 	// Determine line number
@@ -80,7 +81,7 @@ char addCode(){
 	}
 	// Return if source code is null (the command is "delete a line").
 	if (sourceLen<2) return 0;
-	// Alocate area for a line
+	// Allocate area for a line
 	if (g_sourceMemory==g_lastMemory) {
 		// The first line of code.
 		g_sourceMemory-=sourceLen+5;

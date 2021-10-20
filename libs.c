@@ -77,15 +77,15 @@ void listCode(unsigned int from, unsigned int to){
 }
 
 void printError(char type){
+	register char i;
 	newLine();
 	switch(type){
 		case ERR_NOTHIN:
 			return;
 		case ERR_SYNTAX:
 			printStr("SYNTAX ERROR (\x0D");
-			printChar(source[0]);
-			printChar(source[1]);
-			printChar(source[2]);
+			for (i=0;i<3;i++)
+				if (source[i]) printChar(source[i]); else break;
 			printChar(')');
 			break;
 		case ERR_MEMORY:

@@ -6,7 +6,7 @@
 
 #include "main.h"
 
-void memoryError(){
+void memoryError(void){
 	printError(2);
 	clearMemory();
 	__asm
@@ -14,9 +14,9 @@ void memoryError(){
 	__endasm;
 }
 
-void clearMemory(){
-	unsigned char b;
-	unsigned int sourceAddr;
+void clearMemory(void){
+	register unsigned char b;
+	register unsigned int sourceAddr;
 	int* buff=(int*)&g_variables;
 	for (b=0;b<26;b++) { 
 		buff[b]=0x0;
