@@ -133,8 +133,8 @@ void runNext(){
 	}
 }
 
-void runCode(){
-	char e;
+void runCode(void){
+	register char e;
 	// Check if compiled
 	if (((unsigned int*)g_objPointer)[0]==0) {
 		// Compile it.
@@ -161,14 +161,22 @@ void runCode(){
 	__endasm;
 }
 
-void goTo(unsigned int addr){
-	if (addr==0) errorAndEnd(ERR_NOLINE);
-	g_objPointer=addr;
+void goTo(void) __naked {
+	//if (hl==0) errorAndEnd(ERR_NOLINE);
+	//g_objPointer=addr;
 	__asm
-		POP IX // IX is pushed at the beginning
-		POP HL // Remove return address that won't be used
-		POP HL // Remove stack used for addr
-		JP _runCode
+		ld a,h
+		or a,l
+		jr z,0002$
+		ld (_g_objPointer),hl
+		jp _runCode
+	0002$:
+		ld a,#(ERR_NOLINE)
+		push af
+		inc sp
+		call _errorAndEnd
+		inc sp		
+		ret
 	__endasm;
 }
 
@@ -177,7 +185,7 @@ void goTo(unsigned int addr){
 	seed=seed*1103515245+12345;
 	return ((int)seed)>>1;
 }*/
-void getRand(){
+void getRand(void){
 	__asm
 		LD HL,(#_g_seed)
 		LD B,#15

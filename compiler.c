@@ -52,7 +52,7 @@ char skipBlank(void) __naked {
 }
 char compileStr(void){
 	//Prepare a code to set the pointer to DE register.
-	char b;
+	register char b;
 	int j;
 	b=skipBlank();
 	if (b=='"') {
@@ -86,7 +86,7 @@ char compileStr(void){
 	return 0;
 }
 char compileIntSub(void){
-	char b;
+	register char b;
 	int i;
 	int j;
 	// Value will be in DE.
@@ -139,8 +139,8 @@ char compileIntSub(void){
 }
 
 char compileInt(void){
-	char b;
-	char op;
+	register char b;
+	register char op;
 	// Get left value to DE
 	b=compileIntSub();
 	if (b) return b;
@@ -280,7 +280,7 @@ char compileInt(void){
 	} while(1);
 }
 char compilePrint(void){
-	char b;
+	register char b;
 	char cr=1;
 	do {
 		switch ( skipBlank() ) {
@@ -367,8 +367,8 @@ char compileNew(){
 	return ERR_NOTHIN;
 }
 
-char compileLet(){
-	char b,e;
+char compileLet(void){
+	register char b,e;
 	int variableAddress;
 	int j;
 	// Seek the name of variable (either A, B, ... or Z)
@@ -441,7 +441,7 @@ char compileLet(){
 	return ERR_NOTHIN;
 }
 
-void setLineNum(){
+void setLineNum(void){
 	// Set g_objPointer
 	copyCode("\x21\x34\x12\x22",4);
 	((unsigned int*)object)[2]=(unsigned int)(&g_objPointer);
@@ -476,8 +476,8 @@ void setLineNum(){
 	LD HL,nn // The address of 10 lines above
 	PUSH HL
 */
-char compileFor(){
-	char e;
+char compileFor(void){
+	register char e;
 	int variableAddress, *XX, *YY;
 	// init statement
 	e=skipBlank();
@@ -544,7 +544,7 @@ char compileFor(){
 	skip:
 	CALL back:
 */
-char compileNext(){
+char compileNext(void){
 	copyCode(
 		"\xE1"         // POP HL
 		"\x18\x01"     // JR skip:
@@ -590,8 +590,8 @@ char compileDebug(){
 	object+=12;
 	return 0;
 }//*/
-char compileList(){
-	char b;
+char compileList(void){
+	register char b;
 	unsigned int from,to;
 	from=0;
 	to=65535;
@@ -612,13 +612,13 @@ char compileList(){
 	object+=12;
 	return ERR_NOTHIN;
 }
-char compileClear(){
+char compileClear(void){
 	copyByte(0xCD);
 	copyInt((int)clearMemory);
 	return ERR_NOTHIN;
 }
-char compileGoto(){
-	char b;
+char compileGoto(void){
+	register char b;
 	unsigned int i, sourcePos;
 	b=skipBlank();
 	if (b<'0' || '9'<b) {
@@ -626,23 +626,23 @@ char compileGoto(){
 	} else {
 		i=getDecimal();
 	}
+	//check Destination
 	sourcePos=g_sourceMemory;
 	while (sourcePos<g_lastMemory) {
-		if (i<=((unsigned int*)sourcePos)[0]) {
+		if (i==((unsigned int*)sourcePos)[0]) {
 			sourcePos+=3;
 			break;
 		}
 		sourcePos+=((unsigned char*)sourcePos)[2]+5;
 	}
 	if (g_lastMemory<=sourcePos) sourcePos=0;
-	copyCode("\x21\x34\x12\xE5\xCD",5); // LD HL,XXXX; PUSH HL; CALL XXXX;
-	object++;
-	((unsigned int*)object)[0]=(unsigned int)sourcePos;
-	((unsigned int*)object)[2]=(unsigned int)goTo;
-	object+=6;
+	copyByte(0x21);
+	copyInt((int)sourcePos);	// LD HL,#sourcePos
+	copyByte(0xCD);
+	copyInt((unsigned int)goTo);	// CALL goTo
 	return ERR_NOTHIN;
 }
-char compileGosub(){
+char compileGosub(void){
 	char e;
 	copyCode("\xCD\x34\x12\x18\x07",5); // CALL skip:; JR ret:; skip:
 	object++;
@@ -654,17 +654,30 @@ char compileGosub(){
 	setLineNum();
 	return ERR_NOTHIN;
 }
-char compileRet(){
+char compileRet(void){
 	copyByte(0xC9); // RET
 	return ERR_NOTHIN;
 }
-char compileRun(){
+char compileRun(void){
+	register char b;
 	copyByte(0xCD); // CALL XXXX
 	copyInt((int)clearMemory);
-	return compileGoto();
+	// Inhibit compileGoto() when only "RUN" entered
+	b=skipBlank();
+	if (b<'0' || '9'<b) {
+		// No Code, No Error
+		if (g_sourceMemory==g_lastMemory) return ERR_NOTHIN;
+		// goTo(g_sourceMemory+3);
+		copyByte(0x21);
+		copyInt((int)g_sourceMemory+3);
+		copyByte(0xCd);
+		copyInt((int)goTo);
+		return ERR_NOTHIN;
+	} else 
+		return compileGoto();
 }
-char compileIf(){
-	char e;
+char compileIf(void){
+	register char e;
 	e=compileInt();
 	if (e) return e;
 	skipBlank();

@@ -13,7 +13,15 @@ void newCode(){
 	clearMemory();
 }
 
-unsigned int getDecimal(){
+unsigned int getDecimal(void) __naked {
+
+	__asm
+		ld de,(_source)
+		call __decI
+		ld (_source),de
+		ret	
+	__endasm;
+/*
 	char b;
 	int i=0;
 	while(1) {
@@ -24,6 +32,7 @@ unsigned int getDecimal(){
 		i+=b-'0';
 	}
 	return i;
+*/
 }
 
 /*	Format of a line.

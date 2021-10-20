@@ -5,7 +5,6 @@ LSTS	= $(SRCS:.c=.lst)
 ASMS	= $(SRCS:.c=.asm)
 SYMS	= $(SRCS:.c=.sym)
 RELS	= $(SRCS:.c=.rel)
-BKUP	= ~/Yandex.Disk
 
 CC	= sdcc
 CFLAG	= -mz80 -c
@@ -15,7 +14,6 @@ ASM	= sdasz80
 $(PROG): $(OBJS) crt/crt.rel
 	$(CC) crt/crt.rel $(RELS) $(CFLA2)
 	mv crt.ihx release.ihx
-	cp release.ihx $(BKUP)/release.hex
 
 all: $(PROG)
 

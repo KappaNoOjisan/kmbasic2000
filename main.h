@@ -118,7 +118,7 @@ char compileStrFunc();
 // editor.c
 void newCode();
 char addCode();
-unsigned int getDecimal();
+unsigned int getDecimal() __naked;
 
 // libs.c
 int mulInt(int b, int a);
@@ -131,7 +131,7 @@ void listCode(unsigned int from, unsigned int to);
 void printError(char type);
 void errorAndEnd(char type);
 void runCode();
-void goTo(unsigned int addr);
+void goTo(void) __naked;
 void getRand();
 void saveToTape();
 void loadFromTape();

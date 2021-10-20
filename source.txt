@@ -7,6 +7,9 @@
 1. sdcc version
 SDCC : mcs51/z80/z180/r2k/r3ka/gbz80/tlcs90/ds390/TININative/ds400/hc08/s08/stm8 3.8.0 #10562 (Linux)
 
+ Compile warnings:
+  Some warnings I personally couldn't tolerate, so I turned them off, but I haven't been able to turn off warnings I'm not sure about.
+
 2. customized startup
 see crt/crt.asm
 
