@@ -67,8 +67,8 @@ char* uint2dec(unsigned int value) __naked {
 	__asm
 		ld iy,#0
 		add iy,sp
-		ld d,2(iy)
-		ld e,3(iy)
+		ld e,2(iy)
+		ld d,3(iy)
 		call __stade
 		ret
 	__endasm;

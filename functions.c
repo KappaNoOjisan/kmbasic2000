@@ -19,7 +19,7 @@ int valInt(char* str){
 	}
 }
 char* decStr(int num){
-	char* str;
+	register char* str;
 	if (0<=num) {
 		str=uint2dec((unsigned int)num);
 	} else {
@@ -31,7 +31,7 @@ char* decStr(int num){
 	return str;
 }
 char* hexStr(unsigned int num){
-	char* str;
+	register char* str;
 	memcpy(g_strBuff,"0000\x0D",5);
 	str=&g_strBuff[4];
 	do {
@@ -79,20 +79,20 @@ char funcVal(){
 }
 
 char funcInput(){
-	// Call $0003 and remove left part (determined from X cursor position)
+	// Call GETLN and remove left part (determined from X cursor position)
 	// of return value
-	// LD A,(1171); LD DE,g_strBuff; LD L,A; LD H,0;
-	// ADD HL,DE; CALL $0003; LD D,H; LD E,L;
-	copyCode("\x3A\x71\x11\x11\x34\x12\x6F\x26\x00\x19\xCD\x03\x00\x54\x5D",15);
+	// LD A,(CURX); LD DE,g_strBuff; LD L,A; LD H,0;
+	// ADD HL,DE; RST 28h; defb 0; EX DE,HL;
+	copyCode("\x3A\x03\x00\x11\x34\x12\x6F\x26\x00\x19\xEF\x00\xEB",13);
 	((int*)object)[2]=(int)(&g_strBuff[0]);
-	object+=15;
+	object+=13;
 	return 0;
 }
 
 char funcInkey(){
-	// CALL $001B; LD E,A; LD D,0x00
-	copyCode("\xCD\x1b\x00\x5F\x16\x00",7);
-	object+=7;
+	// CALL INKEY; LD E,A; LD D,0x00
+	copyCode("\xef\x0c\x5F\x16\x00",5);
+	object+=5;
 	return 0;
 }
 

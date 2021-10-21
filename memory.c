@@ -7,7 +7,7 @@
 #include "main.h"
 
 void memoryError(void){
-	printError(2);
+	printError(ERR_MEMORY);
 	clearMemory();
 	__asm
 		JP 0x1503
