@@ -11,6 +11,7 @@
 .globl _strncmp
 .globl __decI
 .globl __hexI
+.globl _mul
 .globl __divu
 .globl __stade
 .globl _hlsta
@@ -205,55 +206,35 @@ __div10:
  ex de,hl
  ret
 
-__mul:
- ld b,h		;BC=HL HL=0
- ld c,l
- ld hl,#0
- ld a,d 	;A=D IF A<>0 GOSUB @MUL8
+;
+; HL = HL * DE
+;
+_mul::
+ ld a,d
  or a
- call nz,__mul8
- ld a,e 	; A=E
-__mul8:
- add hl,hl 	; HL=HL+HL RL(A) IF CY THEN HL=HL+BC
+ push hl
+ ld hl,#0
+ ld b,#16
+ jr nz,_mul0
+ srl b
+ ld a,e
+_mul0:
+ ld c,e
+ dec b
+ pop de
+_mul1:
+ sla c
  rla
- jr nc,_m1
- add hl,bc
-_m1:
+ jr nc,_mul2
+ add hl,de
+_mul2:
  add hl,hl
- rla
- jr nc,_m2
- add hl,bc
-_m2:
- add hl,hl
- rla
- jr nc,_m3
- add hl,bc
-_m3:
- add hl,hl
- rla
- jr nc,_m4
- add hl,bc
-_m4:
- add hl,hl
- rla
- jr nc,_m5
- add hl,bc
-_m5:
- add hl,hl
- rla
- jr nc,_m6
- add hl,bc
-_m6:
- add hl,hl
- rla
- jr nc,_m7
- add hl,bc
-_m7:
- add hl,hl
- rla
- ret nc
- add hl,bc
+ djnz _mul1
+ or a
+ ret p
+ add hl,de
  ret
+
 ;
 ; PRINT DECIMAL
 ;  HL

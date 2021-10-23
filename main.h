@@ -8,6 +8,31 @@
 #include <string.h>
 
 #include "macros.h"
+
+typedef char (*FUNCPTR)(void);
+
+#ifdef LOCAL_TEST
+
+#define __naked
+
+typedef struct {
+	FUNCPTR ptr;
+	char kw[8];
+} STATEMENT_LIST;
+
+
+typedef char OBJECT_CODE[20];
+
+#else
+
+typedef char STATEMENT_LIST;
+
+typedef char *OBJECT_CODE;
+
+#endif
+
+
+
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
 #define FIRST_MEMORY 0x4000
@@ -41,7 +66,7 @@ typedef struct {
 // Global variables.
 // Note that only 56 bytes are available for global variables.
 // Do not initialize global variables here but do it in init() or main() function.
-// "volatile const" variables will be embed in code area after $1200,
+// "volatile const" variables will be embedded in code area after _CODE 
 // so these variables would be preserved in MONITOR program,
 // but the other variables will be disrupted.
 #ifdef MAIN
@@ -49,8 +74,8 @@ typedef struct {
 		"0---------------1---------------2---------------3---------------"
 		"4---------------5---------------6---------------7---------------";
 	volatile const char g_variables[]="AABBCCDDEEFFGGHHIIJJKKLLMMNNOOPPQQRRSSTTUUVVWWXXYYZZ";
-	volatile const char g_vardesc[26];
-	volatile const int  g_varlimit[26];
+	volatile char g_vardesc[26];
+	volatile int  g_varlimit[26];
 	volatile const unsigned int g_firstMemory=0, g_lastMemory=0, g_nextMemory=0, g_sourceMemory=0;
 	unsigned int g_objPointer, g_ifElseJump, g_seed;
 	unsigned int g_temp161, g_temp162;
@@ -77,6 +102,8 @@ typedef struct {
 #define g_nextMemory (((unsigned int*)(&g_nextMemory))[0])
 #define g_sourceMemory (((unsigned int*)(&g_sourceMemory))[0])
 
+void mul();
+
 // memory.c
 void memoryError();
 void clearMemory();
@@ -98,17 +125,17 @@ char getLn(char *wkbuff) __naked;
 char callCode(int address) __naked;
 
 // compiler.c
-typedef char (*FUNCPTR)(void);
 
-void copyCode(char* code, int len);
+void copyCode(OBJECT_CODE code, int len);
 void copyByte(char b);
 void copyInt(int i);
 char command(char* str);
-char skipBlank() __naked;
-FUNCPTR seekList(char* slist) __naked;
+char skipBlank();
+FUNCPTR seekList(STATEMENT_LIST* slist) __naked;
 char compile();
 char compileStr();
 char compileInt();
+char compilePrint();
 
 // functions.c
 char funcSubStr();
@@ -121,13 +148,13 @@ char addCode();
 unsigned int getDecimal() __naked;
 
 // libs.c
-int mulInt(int b, int a);
 int divInt(int b, int a);
 int modInt(int b, int a);
 char* initStr();
 void addStr(char* str2, char* str1);
 void afterStr(int* var);
 void listCode(unsigned int from, unsigned int to);
+void deleteCode(unsigned int from, unsigned int to);
 void printError(char type);
 void errorAndEnd(char type);
 void runCode();

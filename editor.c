@@ -48,9 +48,9 @@ unsigned int getDecimal(void) __naked {
 +n+5  next line
 */
 char addCode(void){
-	static char e;
+	register char e;
 	register unsigned int sourceStart;
-	unsigned int lineNum, sourceLen, lineLen, lastSourceStart;
+	unsigned int lineNum, sourceLen, lineLen;
 	// Clear memory to forget everything with allocated memory regions.
 	clearMemory();
 	// Determine line number
@@ -60,7 +60,7 @@ char addCode(void){
 	skipBlank();
 	// Check syntax
 	sourceStart=(unsigned int)source;
-	object=g_nextMemory;
+	object=(char*)g_nextMemory;
 	e=compile();
 	if (e) return e;
 	// Determine source length and go back to original source position.

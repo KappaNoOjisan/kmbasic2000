@@ -2,15 +2,13 @@
 *  KM-BASIC for KMZ-80  *
 *       Katsumi         *
 * License: LGPL ver 2.1 *
+* 	for MZ2000	*
 *************************/
+
 
 #include "main.h"
 static FILEINFO* f=FILE_INFO;
 static unsigned int size;
-
-int mulInt(int b, int a){
-	return a*b;
-}
 
 int divInt(int b, int a){
 	return a/b;
@@ -55,7 +53,7 @@ void afterStr(int* var){
 
 void listCode(unsigned int from, unsigned int to){
 	unsigned int sourcePos, lineNum;
-	unsigned char i,b;
+	register unsigned char i,b;
 	sourcePos=g_sourceMemory;
 	while (sourcePos<g_lastMemory) {
 		lineNum=((unsigned int*)sourcePos)[0];
@@ -75,7 +73,48 @@ void listCode(unsigned int from, unsigned int to){
 		}
 	}
 }
-
+void deleteCode(unsigned int from, unsigned int to){
+	register char *sourcePos;
+	register char *moveTo;
+	register char *moveFrom;
+	unsigned int moveSize;
+	sourcePos=(char*)g_sourceMemory;
+	moveTo = NULL;
+	moveFrom = NULL;
+	while ((int)sourcePos<g_lastMemory) {
+		if (from>*(unsigned int*)sourcePos) {
+			sourcePos+=sourcePos[2]+5;
+			continue;
+		} else {
+			moveFrom=sourcePos;
+			break;
+		}
+	}
+	if (moveFrom==NULL)
+		return;
+	while ((int)sourcePos<g_lastMemory) {
+		if (*(unsigned int*)sourcePos<=to) {
+			sourcePos+=sourcePos[2]+5;
+			continue;
+		} else {
+			moveTo=sourcePos;
+			break;
+		}
+	}
+	if (moveTo==NULL)
+		moveTo=(char*)g_lastMemory;
+	// delete
+	if (moveFrom==(char*)g_sourceMemory) {
+		moveSize=(unsigned int)moveTo-(unsigned int)moveFrom;
+		g_sourceMemory+=moveSize;
+	} else {
+		moveSize=(unsigned int)moveFrom-g_sourceMemory;
+		moveTo-=moveSize;
+		memmove(moveTo,(void*)g_sourceMemory,moveSize);
+		g_sourceMemory=(unsigned int)moveTo;
+	}
+		
+}
 void printError(char type){
 	register char i;
 	newLine();

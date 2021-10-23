@@ -3,13 +3,56 @@
 *       Katsumi         *
 * License: LGPL ver 2.1 *
 *************************/
-
 #include "main.h"
+
+#ifdef LOCAL_TEST
+STATEMENT_LIST forDebug[] = {
+	{ 
+		.ptr = compilePrint,
+		.kw  = "PRINT"
+	},
+	{
+		.ptr = NULL,
+		.kw  = ""
+	}
+};
+
+char skipBlank(void) {
+	while (*source==' ') source++;
+		return *source;
+}
+
+
+void checkCodeMemory(int len) {
+}
+
+void copyCode(OBJECT_CODE code, int len){
+	int i;
+	for (i=0;i<len;i++) {
+		printf("%02x",(int)code[i]);
+	}
+	putchar('\n');
+}
+
+void copyByte(char b){
+	printf("%02x",b);
+	object+=2;
+}
+
+void copyInt(int i){
+	char l,h;
+	l = i % 256;
+	h = i / 256;
+
+	printf("%02x%02x",l,h);
+	object++;	
+}
+#else
 void checkCodeMemory(int len) {
 	if (g_sourceMemory<=len+(int)object) memoryError();
 }
 
-void copyCode(char* code, int len){
+void copyCode(OBJECT_CODE code, int len){
 	checkCodeMemory(len+2);
 	memcpy(object,code,len);
 }
@@ -26,16 +69,7 @@ void copyInt(int i){
 	object+=2;
 }
 
-char command(char* str){
-	int len;
-	for(len=0;str[len];len++);
-	if (strncmp(source,str,len)) return 0;
-	source+=len;
-	return 1;
-}
 char skipBlank(void) __naked {
-	//while (*source==' ') source++;
-	//return *source;
 	__asm
 		ld hl,(_source)
 		ld a,#(' ')
@@ -49,6 +83,14 @@ char skipBlank(void) __naked {
 		ld l,(hl)
 		ret
 	__endasm;
+}
+#endif
+char command(char* str){
+	int len;
+	for(len=0;str[len];len++);
+	if (strncmp(source,str,len)) return 0;
+	source+=len;
+	return 1;
 }
 char compileStr(void){
 	//Prepare a code to set the pointer to DE register.
@@ -98,10 +140,12 @@ char compileIntSub(void){
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
 	} else if (b=='-') {
-		// Minus value.  Put 0 to DE.
-		// Do not increment the pointer to source, as it will be used in compileInt().
-		copyCode("\x11\x00\x00",3); // LD DE,0x0000
-		object+=3;
+		source++;
+		b=compileInt();
+		if (b) return b;
+		// LD HL,0; OR A; SBC HL,DE; EX DE,HL
+		copyCode("\x21\x00\x00\xb7\xed\x52\xeb",7);
+		object+=7;
 	} else if (b=='$' || ('0'<=b && b<='9')) {
 		// Hexadecimal or decimal
 		source=getInt(source,&i);
@@ -202,10 +246,10 @@ char compileInt(void){
 				object+=4;
 				break;
 			case '*':
-				// PUSH DE; CALL mulInt; POP DE; POP DE
-				copyCode("\xD5\xCD\x00\x00\xD1\xD1",6);
-				((int*)object)[1]=(int)mulInt;
-				object+=6;
+				// POP HL; CALL mulInt
+				copyCode("\xE1\xCD",2);
+				object+=2;
+				copyInt((int)mul);
 				break;
 			case '/':
 				// PUSH DE; CALL divInt; POP DE; POP DE
@@ -598,7 +642,7 @@ char compileList(void){
 	b=skipBlank();
 	if ('0'<=b && b<='9') from=to=getDecimal();
 	b=skipBlank();
-	if (b=='-') {
+	if (b=='-'||b==',') {
 		source++;
 		b=skipBlank();
 		if ('0'<=b && b<='9') to=getDecimal();
@@ -688,7 +732,7 @@ char compileIf(void){
 	g_ifElseJump=(unsigned int)object-2;
 	return ERR_NOTHIN;
 }
-char compileElse(){
+char compileElse(void){
 	if (!g_ifElseJump) return 1;
 	((unsigned int*)g_ifElseJump)[0]=(unsigned int)object+3;
 	copyByte(0xC3);
@@ -696,7 +740,7 @@ char compileElse(){
 	object+=2;
 	return ERR_NOTHIN;
 }
-char compilePoke(){
+char compilePoke(void){
 	char e;
 	e=compileInt();
 	if (e) return e;
@@ -709,7 +753,7 @@ char compilePoke(){
 	object+=2;
 	return ERR_NOTHIN;
 }
-char compileCursor(){
+char compileCursor(void){
 	char e;
 	e=compileInt();
 	if (e) return e;
@@ -725,7 +769,7 @@ char compileCursor(){
 	object+=8;
 	return ERR_NOTHIN;
 }
-char compileDim(){
+char compileDim(void){
 	char b;
 	int j;
 	int variableAddress;
@@ -755,7 +799,7 @@ char compileDim(){
 		source++;
 	}
 }
-char compileExec(){
+char compileExec(void){
 	char b1,b2;
 	while(1){
 		b1=skipBlank();
@@ -779,7 +823,7 @@ char compileExec(){
 		source+=2;
 	}
 }
-char compileSave(){
+char compileSave(void){
 	char b;
 	char e;
 	b=skipBlank();
@@ -789,9 +833,9 @@ char compileSave(){
 	copyInt((int)saveToTape);
 	return ERR_NOTHIN;
 }
-char compileLoad(){
-	char b;
-	char e;
+char compileLoad(void){
+	register char b;
+	register char e;
 	b=skipBlank();
 	if (b=='"') {
 		e=compileStr();
@@ -806,8 +850,60 @@ char compileLoad(){
 	copyInt((int)loadFromTape);
 	return ERR_NOTHIN;
 }
+char compileDelete(void){
+	register char b;
+	unsigned int from,to,tmp;
+	from=0;
+	to=65535;
+	b=skipBlank();
+	if (b==0)
+		return ERR_NOLINE;
+	else if ('0'<=b && b<='9') {
+		from=getDecimal();
+		to=from;
+		b=skipBlank();
+	}
+	if (b=='-'||b==',') {
+		source++;
+		b=skipBlank();
+		if ('0'<=b && b<='9') {
+			tmp=getDecimal();
+			if (tmp>from) to=tmp; else from=tmp;
+		}
+	}
+	copyCode("\x21\x34\x12\xE5\x21\x34\x12\xE5\xCD\x34\x12\xE1\xE1",13); // LD HL,XXXX; PUSH HL; LD HL,XXXX; PUSH HL; CALL XXXX; POP HL; POP HL;
+	object++;
+	((unsigned int*)object)[0]=to;
+	((unsigned int*)object)[2]=from;
+	((unsigned int*)object)[4]=(unsigned int)deleteCode;
+	object+=12;
+	return ERR_NOTHIN;
+}
+#ifdef LOCAL_TEST
 
-char* statementList() __naked {
+STATEMENT_LIST* statementList(void) {
+
+	return forDebug;
+}
+
+FUNCPTR seekList(STATEMENT_LIST slist[]) {
+	while(1){
+		// Fetch pointer to function
+		if (slist->ptr==NULL) {
+			// End of statement list (not found)
+			return NULL;
+		}
+		// slist is now pointer to statement string to check
+		if (command(slist->kw)) {
+			// Statement/function found
+			return slist->ptr;
+		}
+		slist++;
+	}
+		
+}
+#else
+STATEMENT_LIST* statementList(void) __naked {
 	__asm
 		ld hl,#list
 		ret
@@ -857,6 +953,9 @@ char* statementList() __naked {
 		.dw #_compileExec
 		.ascii "EXEC "
 		.db 0x00
+		.dw #_compileDelete
+		.ascii "DELETE"
+		.db 0x00
 		.dw #_compilePrint
 		.ascii "PRINT"
 		.db 0x00
@@ -879,7 +978,8 @@ char* statementList() __naked {
 #pragma save
 #pragma disable_warning 85
 
-FUNCPTR seekList(char* slist) __naked {
+
+FUNCPTR seekList(STATEMENT_LIST* slist) __naked {
 	__asm
 		ld iy,#0
 		add iy,sp
@@ -916,8 +1016,10 @@ FUNCPTR seekList(char* slist) __naked {
 
 #pragma restore
 
+#endif
+
 char compile(void) {
-	register char* slist;
+	register STATEMENT_LIST* slist;
 	FUNCPTR sfunc;
 	register char e=ERR_NOTHIN;
 	g_ifElseJump=0;
