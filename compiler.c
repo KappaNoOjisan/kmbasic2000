@@ -141,11 +141,19 @@ char compileIntSub(void){
 		source++;
 	} else if (b=='-') {
 		source++;
-		b=compileInt();
-		if (b) return b;
-		// LD HL,0; OR A; SBC HL,DE; EX DE,HL
-		copyCode("\x21\x00\x00\xb7\xed\x52\xeb",7);
-		object+=7;
+		b=skipBlank();
+		if (b=='$' || ('0'<=b && b<='9')) {
+			// Hexadecimal or decimal
+			source=getInt(source,&i);
+			copyByte(0x11);
+			copyInt(-i);
+		} else {	
+			b=compileInt();
+			if (b) return b;
+			// XOR A; LD H,A; LD L,A; SBC HL,DE; EX DE,HL
+			copyCode("\xaf\x67\x6f\xed\x52\xeb",6);
+			object+=6;
+		}
 	} else if (b=='$' || ('0'<=b && b<='9')) {
 		// Hexadecimal or decimal
 		source=getInt(source,&i);
@@ -522,7 +530,8 @@ void setLineNum(void){
 */
 char compileFor(void){
 	register char e;
-	int variableAddress, *XX, *YY;
+	register char *patch;
+	int variableAddress;
 	// init statement
 	e=skipBlank();
 	variableAddress=(int)(&g_variables[(e-'A')*2]);
@@ -540,44 +549,54 @@ char compileFor(void){
 		copyByte(0xD5); // PUSH DE
 		e=compileInt();
 		if (e) return e;
-		copyCode("\xED\x53\x00\x00\xE1\x19",6); // LD (yyyy),DE; POP HL; ADD HL,DE
-		YY=(int*)(object+2); // See below
-		object+=6;
+		copyCode("\xED\x53",2); // LD DE,YY
+		object+=2;
+		copyInt((int)object+12);
+		copyByte(0xE1);	// POP HL
 	} else {
 		// STEP 1
-		YY=0;
-		copyCode("\xEB\x23",2); // EX DE,HL; INC HL
+		copyByte(0xeb);	// EX DE,HL
+	}
+
+	copyByte(0x22);		//LD (LIMIT),HL
+	copyInt((int)object+16);
+	// FOR statment 
+	copyCode(
+		"\x18\x17"	// JR skip:
+		"\x2A\x34\x12"	// next:LD HL,(VAR)
+		"\x11\x01\x00"	// LD DE,STEP
+		"\x7a"		// LD A,D
+		"\x19"		// ADD HL,DE
+		"\x22\x34\x12"	// LD (VAR),HL
+		"\x11\x34\x12"  // LD DE,LIMIT
+		"\x17"		// RLA
+		"\x30\x01"	// JR nc,skip2
+		"\xeb"		// EX DE,HL
+		"\x37"		// skip2: SCF
+		"\xED\x52"      // SBC HL,DE
+		"\xF0"          // RET P
+		"\xE1"          // POP HL
+		"\x21\x34\x12"  // skip: LD HL,next
+		"\xE5"          // PUSH HL
+		,29);
+	patch=object+3;
+	((int*)patch)[0]=variableAddress;
+	patch=object+11;
+	((int*)patch)[0]=variableAddress;
+	patch=object+26;
+	((int*)patch)[0]=(int)object+2;
+	object+=29;
+
+	e=skipBlank();
+	if (e==0 && g_objPointer == 0){
+		//cancel
+		copyCode("\xe1\xc9",2);
 		object+=2;
 	}
-	copyByte(0x22); // LD (xxxx),HL
-	XX=(int*)object; // See below
-	object+=2;
-	// FOR statement main routine follows.
-	copyCode(
-		"\x18\x12"     // JR skip:
-		"\x2A\x34\x12" // LD HL,(1234)
-		"\x11\x01\x00" // LD DE,0001
-		"\x19"         // ADD HL,DE
-		"\x22\x34\x12" // LD (1234),HL
-		"\xAF"         // XOR A
-		"\x11\x34\x12" // LD DE,XXXX
-		"\xED\x52"     // SBC HL,DE
-		"\xC8"         // RET Z
-		"\xE1"         // POP HL
-		"\x21\x34\x12" // skip: LD HL,1234
-		"\xE5"         // PUSH HL
-		,24);
-	*XX=(int)object+14;
-	if (YY) *YY=(int)object+6;
-	object+=3;
-	((int*)object)[0]=variableAddress;
-	object+=7;
-	((int*)object)[0]=variableAddress;
-	object+=11;
-	((int*)object)[0]=(int)object-19;
-	object+=3;
+
 	// g_objPointer will back to current line.
 	setLineNum();
+
 	return ERR_NOTHIN;
 }
 /*	NEXT statement
