@@ -85,6 +85,19 @@ char skipBlank(void) __naked {
 	__endasm;
 }
 #endif
+char checkCountFor() {
+	if (countFor==0) return ERR_NOTHIN;
+	else {
+		// reset stack
+		copyByte(0x21);
+		copyInt(countFor*2);	// LD HL,#countFor*2
+		copyCode("\x39\xf9",2);	// ADD HL,SP; LD SP,HL
+		object+=2;
+		countFor=0;
+		return ERR_NOTHIN; 
+	}
+}
+
 char command(char* str){
 	int len;
 	for(len=0;str[len];len++);
@@ -254,22 +267,23 @@ char compileInt(void){
 				object+=4;
 				break;
 			case '*':
-				// POP HL; CALL mulInt
+				// POP HL; CALL mul
 				copyCode("\xE1\xCD",2);
 				object+=2;
 				copyInt((int)mul);
 				break;
 			case '/':
-				// PUSH DE; CALL divInt; POP DE; POP DE
-				copyCode("\xD5\xCD\x00\x00\xD1\xD1",6);
-				((int*)object)[1]=(int)divInt;
-				object+=6;
+				// POP HL; CALL div
+				copyCode("\xE1\xCD",2);
+				object+=2;
+				copyInt((int)div);
 				break;
 			case '%':
-				// PUSH DE; CALL ModInt; POP DE; POP DE
-				copyCode("\xD5\xCD\x00\x00\xD1\xD1",6);
-				((int*)object)[1]=(int)modInt;
-				object+=6;
+				// POP HL; CALL div; EX DE,HL
+				copyCode("\xE1\xCD",2);
+				object+=2;
+				copyInt((int)div);
+				copyByte(0xeb);
 				break;
 			case 'A':
 				// POP HL; LD A,H; AND D; LD H,A; LD A,L; AND E; LD L,A
@@ -532,6 +546,7 @@ char compileFor(void){
 	register char e;
 	register char *patch;
 	int variableAddress;
+
 	// init statement
 	e=skipBlank();
 	variableAddress=(int)(&g_variables[(e-'A')*2]);
@@ -587,16 +602,11 @@ char compileFor(void){
 	((int*)patch)[0]=(int)object+2;
 	object+=29;
 
-	e=skipBlank();
-	if (e==0 && g_objPointer == 0){
-		//cancel
-		copyCode("\xe1\xc9",2);
-		object+=2;
-	}
+	if (g_objPointer==0)
+		countFor++;
 
 	// g_objPointer will back to current line.
 	setLineNum();
-
 	return ERR_NOTHIN;
 }
 /*	NEXT statement
@@ -608,6 +618,11 @@ char compileFor(void){
 	CALL back:
 */
 char compileNext(void){
+	if (g_objPointer==0){
+		if (countFor==0)
+			return ERR_MISMAT;
+		countFor--;
+	}
 	copyCode(
 		"\xE1"         // POP HL
 		"\x18\x01"     // JR skip:
@@ -617,6 +632,7 @@ char compileNext(void){
 	object+=5;
 	((int*)object)[0]=(int)object-2;
 	object+=2;
+	
 	return ERR_NOTHIN;
 }
 /*
@@ -1077,5 +1093,7 @@ char compile(void) {
 		}
 	}
 	if (g_ifElseJump) ((unsigned int*)g_ifElseJump)[0]=(unsigned int)object;
+	if (g_objPointer==0)
+		checkCountFor();
 	return ERR_NOTHIN;
 }

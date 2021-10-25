@@ -34,6 +34,9 @@ void clearMemory(void){
 	}
 	// Reset random seed
 	g_seed=0x3045;
+
+	// for .. next counter 
+	countFor=0;	
 }
 
 char* allocateMemory(int len){

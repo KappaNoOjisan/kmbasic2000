@@ -10,13 +10,6 @@
 static FILEINFO* f=FILE_INFO;
 static unsigned int size;
 
-int divInt(int b, int a){
-	return a/b;
-}
-
-int modInt(int b, int a){
-	return a%b;
-}
 // g_tempStr and g_temp161 are used here.
 char* initStr(){
 	g_tempStr=allocateMemory(81);
@@ -81,6 +74,11 @@ void deleteCode(unsigned int from, unsigned int to){
 	sourcePos=(char*)g_sourceMemory;
 	moveTo = NULL;
 	moveFrom = NULL;
+
+	// no code , return
+	if ( (int)sourcePos==g_lastMemory ) 
+		return;
+
 	while ((int)sourcePos<g_lastMemory) {
 		if (from>*(unsigned int*)sourcePos) {
 			sourcePos+=sourcePos[2]+5;
@@ -133,11 +131,11 @@ void printError(char type){
 		case ERR_NOLINE: 
 			printStr("NO SUCH LINE\x0D");
 			break;			
-		case ERR_RESERV:
-			printStr("NOT IMPLEMENTED YET\x0D");
+		case ERR_MISMAT:
+			printStr("FOR..NEXT MISSMATCH\x0D");
 			break;
 		case ERR_TYPEOF:
-			printStr("TYPE MISMATCH\x0D");
+			printStr("TYPE MISSMATCH\x0D");
 			break;
 		default:
 			printStr("ERROR \x0D");
@@ -266,8 +264,7 @@ void saveToTape(){
 		ld hl,(_f)
 		ld (hl),#2
 		inc hl
-	0002$:
-		ld a,(de)
+	0002$:	ld a,(de)
 		cp a,#0x0d
 		jr z,0003$
 		inc de
@@ -275,8 +272,7 @@ void saveToTape(){
 		inc hl
 		dec b
 		jr 0002$
-	0003$:
-		ld (hl),a
+	0003$:	ld (hl),a
 		inc hl
 		djnz 0003$
 	__endasm;

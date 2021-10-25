@@ -12,6 +12,7 @@
 .globl __decI
 .globl __hexI
 .globl _mul
+.globl _div
 .globl __divu
 .globl __stade
 .globl _hlsta
@@ -129,25 +130,28 @@ hex1:
 ; hl = decimal(DE)
 ;
 __decI::
+ ld bc,#0x303A
  xor a		;HL=0 A=(DE)
  ld h,a
  ld l,a
  ld a,(de)	
- cp #0x030	;IF A <"0" RET
+ cp b		;IF A <"0" RET
  ret c
- cp #0x03a 	;IF A>=":" RET
+ cp c 		;IF A>=":" RET
  jr nc,rderr
 _dec0:		;DEC0 A=(DE)
  ld a,(de)
- cp #0x030
+ cp b
  ret c		;IF A<"0" RET
- cp #0x03a	;IF A>=":" RET
+ cp c		;IF A>=":" RET
  jr nc,rderr
  call __mul10
+ push bc
+ sub b
  ld b,#0	
- sub #0x30
  ld c,a
  add hl,bc
+ pop bc
  inc de	
  jr _dec0
 
@@ -162,17 +166,54 @@ __mul10:
  pop de
  ret
 
+_com:
+ ld a,h
+ cpl
+ ld h,a
+ ld a,l
+ cpl
+ ld l,a
+ inc hl
+ ret
+ 
+_div::
+ ld b,#0
+ ld a,d
+ or a
+ jr nz,_div0
+ or e
+ jr nz,_div1
+ ret
+
+_div0:
+ jp p,_div1
+ inc b
+ ex de,hl
+ call _com
+ ex de,hl
+_div1:
+ ld a,h
+ cp a,#0x80
+ jr c,_div2
+ dec b
+ call _com
+_div2:
+ ld a,b
+ or a,a
+ jr z,__divu
+ call __divu
+ jr _com
 ;
 ; HL = HL div DE
 ;
 __divu:
- ld b,h		;BC=HL HL=0
+ ld a,h		;AC=HL HL=0
  ld c,l
  ld hl,#0
- ld a,#8
+ ld b,#8
 _divulop:	;DO A=8
- sla c 		; SLA(C) RL(B) HL=HL+.HL
- rl b
+ sla c 		; SLA(C) RL(A) HL=HL+.HL
+ rla
  adc hl,hl
  inc c 		; C+ HL=HL-.DE
  sbc hl,de
@@ -180,8 +221,8 @@ _divulop:	;DO A=8
  add hl,de
  dec c
 _divu2:
- sla c		; SLA(C) RL(B) HL=HL+.HL
- rl b
+ sla c		; SLA(C) RL(A) HL=HL+.HL
+ rla
  adc hl,hl
  inc c		; C+ HL=HL-.DE
  sbc hl,de
@@ -189,9 +230,8 @@ _divu2:
  add hl,de
  dec c
 _divu3:
- dec a
- jr nz,_divulop	;UNTIL DEC(A)=0 DE=BC DE<>HL
- ld d,b
+ djnz _divulop	;UNTIL DEC(B)=0 DE=AC DE<>HL
+ ld d,a
  ld e,c
  ex de,hl
  ret

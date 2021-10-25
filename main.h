@@ -35,7 +35,7 @@ typedef char *OBJECT_CODE;
 
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
-#define FIRST_MEMORY 0x4000
+#define FIRST_MEMORY 0x4200
 #define LAST_MEMORY 0xdffe
 typedef struct {
 	char atbr;
@@ -62,6 +62,7 @@ typedef struct {
 #define ERR_NOLINE 3
 #define ERR_RESERV 4
 #define ERR_TYPEOF 5
+#define ERR_MISMAT 6
 
 // Global variables.
 // Note that only 56 bytes are available for global variables.
@@ -83,6 +84,7 @@ typedef struct {
 	volatile char* source;
 	char* object;
 	char wkbuff[160+1];
+	char countFor;
 #else
 	extern const char g_strBuff[];
 	extern const char g_variables[];
@@ -94,6 +96,7 @@ typedef struct {
 	extern char* g_tempStr;
 	volatile extern char* source;
 	extern char* object;
+	extern char countFor;
 #endif
 
 // Macros to turn (const unsigned int) to (unsigned int)
@@ -103,7 +106,7 @@ typedef struct {
 #define g_sourceMemory (((unsigned int*)(&g_sourceMemory))[0])
 
 void mul();
-
+void div();
 // memory.c
 void memoryError();
 void clearMemory();
@@ -148,8 +151,6 @@ char addCode();
 unsigned int getDecimal() __naked;
 
 // libs.c
-int divInt(int b, int a);
-int modInt(int b, int a);
 char* initStr();
 void addStr(char* str2, char* str1);
 void afterStr(int* var);

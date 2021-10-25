@@ -71,10 +71,10 @@ char* substr2(int len, int pos, char* str){
 
 char funcVal(){
 	compileStr();
-	// PUSH DE; CALL valInt; LD D,H; LD E,L; POP HL;
-	copyCode("\xD5\xCD\x34\x12\x54\x5D\xE1",7);
+	// PUSH DE; CALL valInt; EX DE,HL; POP HL;
+	copyCode("\xD5\xCD\x34\x12\xEB\xE1",6);
 	((int*)object)[1]=(int)valInt;
-	object+=7;
+	object+=6;
 	return 0;
 }
 
@@ -99,10 +99,10 @@ char funcInkey(){
 char funcDec(){
 	compileInt();
 	// DEC$(num)
-	// PUSH DE; CALL decStr; LD D,H; LD E,L; POP HL;
-	copyCode("\xD5\xCD\x34\x12\x54\x5D\xE1",7);
+	// PUSH DE; CALL decStr; EX DE,HL; POP HL;
+	copyCode("\xD5\xCD\x34\x12\xEB\xE1",6);
 	((int*)object)[1]=(int)decStr;
-	object+=7;
+	object+=6;
 	return 0;
 }
 
