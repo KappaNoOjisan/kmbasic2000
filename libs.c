@@ -131,11 +131,14 @@ void printError(char type){
 		case ERR_NOLINE: 
 			printStr("NO SUCH LINE\x0D");
 			break;			
-		case ERR_MISMAT:
-			printStr("FOR..NEXT MISSMATCH\x0D");
+		case ERR_MISFOR:
+			printStr("FOR..NEXT MISMATCH\x0D");
+			break;
+		case ERR_MISSUB:
+			printStr("GOSUB..RETURN MISMATCH\x0D");
 			break;
 		case ERR_TYPEOF:
-			printStr("TYPE MISSMATCH\x0D");
+			printStr("TYPE MISMATCH\x0D");
 			break;
 		default:
 			printStr("ERROR \x0D");
@@ -151,12 +154,15 @@ void printError(char type){
 
 void errorAndEnd(char type) {
 	printError(type);
+	countFor=0;
+	countGosub=0;
 	__asm
 		JP 0x1503
 	__endasm;
 }
 
-void runNext(){
+void runNext(void) __naked {
+	/*
 	g_objPointer--;
 	g_objPointer+=((unsigned char*)g_objPointer)[0]+6;
 	if (g_objPointer<g_lastMemory) {
@@ -165,12 +171,31 @@ void runNext(){
 		__endasm;
 	} else {
 		__asm
-			JP 0x1503
+			JP _checkStack
 		__endasm;
 	}
+	*/
+	__asm
+		ld hl,(_g_objPointer)
+		dec hl
+		ld c,(hl)
+		xor a
+		ld b,a
+		ld d,a
+		ld e,#6
+		add hl,bc
+		add hl,de
+		ld bc,(_g_lastMemory)
+		or a
+		sbc hl,bc
+		jp nc,_checkStack
+		add hl,bc
+		ld (_g_objPointer),hl
+		jp _runCode
+	__endasm;
 }
 
-void runCode(void){
+void runCode(void) __naked {
 	register char e;
 	// Check if compiled
 	if (((unsigned int*)g_objPointer)[0]==0) {
@@ -179,22 +204,18 @@ void runCode(void){
 		object=(char*)g_nextMemory;
 		e=compile();
 		if (e) errorAndEnd(e);
-		copyByte(0xC3); // JP XXXX
+		copyByte(0xC3); // JP _runNext 
 		copyInt((int)runNext);
 		((unsigned int*)g_objPointer)[0]=g_nextMemory;
 		g_nextMemory=(unsigned int)object;
 	}
 	__asm
-		LD HL,#_g_objPointer
-		LD E,(HL)
+		LD HL,(_g_objPointer)
+		LD A,(HL)
 		INC HL
 		LD H,(HL)
-		LD L,E
-		LD E,(HL)
-		INC HL
-		LD D,(HL)
-		PUSH DE
-		RET
+		LD L,A
+		JP (HL)
 	__endasm;
 }
 
@@ -353,3 +374,4 @@ void loadFromTape(){
 	__endasm;
 
 }
+

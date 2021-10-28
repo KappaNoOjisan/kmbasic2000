@@ -14,19 +14,15 @@ typedef char (*FUNCPTR)(void);
 #ifdef LOCAL_TEST
 
 #define __naked
-
 typedef struct {
 	FUNCPTR ptr;
 	char kw[8];
 } STATEMENT_LIST;
-
-
-typedef char OBJECT_CODE[20];
+typedef unsigned char OBJECT_CODE[10];
 
 #else
 
 typedef char STATEMENT_LIST;
-
 typedef char *OBJECT_CODE;
 
 #endif
@@ -37,6 +33,8 @@ typedef char *OBJECT_CODE;
 #define FILE_INFO 0x1300
 #define FIRST_MEMORY 0x4200
 #define LAST_MEMORY 0xdffe
+#define MAX_SUB_COUNT 4
+#define MAX_FOR_COUNT 8
 typedef struct {
 	char atbr;
 	char name[16];
@@ -62,7 +60,9 @@ typedef struct {
 #define ERR_NOLINE 3
 #define ERR_RESERV 4
 #define ERR_TYPEOF 5
-#define ERR_MISMAT 6
+#define ERR_MISFOR 6
+#define ERR_MISSUB 7
+#define ERR_STKOVR 8
 
 // Global variables.
 // Note that only 56 bytes are available for global variables.
@@ -85,6 +85,7 @@ typedef struct {
 	char* object;
 	char wkbuff[160+1];
 	char countFor;
+	char countGosub;
 #else
 	extern const char g_strBuff[];
 	extern const char g_variables[];
@@ -97,6 +98,7 @@ typedef struct {
 	volatile extern char* source;
 	extern char* object;
 	extern char countFor;
+	extern char countGosub;
 #endif
 
 // Macros to turn (const unsigned int) to (unsigned int)
@@ -125,10 +127,13 @@ void printChar(const char value) __naked;
 void printHex16(unsigned int value) __naked;
 void printHex8(unsigned char value) __naked;
 char getLn(char *wkbuff) __naked;
+char checkStack() __naked;
+char preCheckStack() __naked;
+char countStack() __naked;
+char jmpErrAndEnd() __naked;
 char callCode(int address) __naked;
 
 // compiler.c
-
 void copyCode(OBJECT_CODE code, int len);
 void copyByte(char b);
 void copyInt(int i);
@@ -139,6 +144,9 @@ char compile();
 char compileStr();
 char compileInt();
 char compilePrint();
+char checkCountFor();
+char compileFor();
+char compileNext();
 
 // functions.c
 char funcSubStr();
@@ -158,7 +166,7 @@ void listCode(unsigned int from, unsigned int to);
 void deleteCode(unsigned int from, unsigned int to);
 void printError(char type);
 void errorAndEnd(char type);
-void runCode();
+void runCode() __naked;
 void goTo(void) __naked;
 void getRand();
 void saveToTape();

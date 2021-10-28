@@ -6,47 +6,7 @@
 #include "main.h"
 
 #ifdef LOCAL_TEST
-STATEMENT_LIST forDebug[] = {
-	{ 
-		.ptr = compilePrint,
-		.kw  = "PRINT"
-	},
-	{
-		.ptr = NULL,
-		.kw  = ""
-	}
-};
-
-char skipBlank(void) {
-	while (*source==' ') source++;
-		return *source;
-}
-
-
-void checkCodeMemory(int len) {
-}
-
-void copyCode(OBJECT_CODE code, int len){
-	int i;
-	for (i=0;i<len;i++) {
-		printf("%02x",(int)code[i]);
-	}
-	putchar('\n');
-}
-
-void copyByte(char b){
-	printf("%02x",b);
-	object+=2;
-}
-
-void copyInt(int i){
-	char l,h;
-	l = i % 256;
-	h = i / 256;
-
-	printf("%02x%02x",l,h);
-	object++;	
-}
+#include "dmyfunc.c"
 #else
 void checkCodeMemory(int len) {
 	if (g_sourceMemory<=len+(int)object) memoryError();
@@ -85,17 +45,12 @@ char skipBlank(void) __naked {
 	__endasm;
 }
 #endif
-char checkCountFor() {
-	if (countFor==0) return ERR_NOTHIN;
-	else {
-		// reset stack
-		copyByte(0x21);
-		copyInt(countFor*2);	// LD HL,#countFor*2
-		copyCode("\x39\xf9",2);	// ADD HL,SP; LD SP,HL
-		object+=2;
-		countFor=0;
-		return ERR_NOTHIN; 
-	}
+char checkCountFor(void) {
+	// reset stack
+	copyByte(0xCD);			// CALL checkStack
+	copyInt((int)checkStack);
+					// CALL NZ,restoreStack
+	return ERR_NOTHIN; 
 }
 
 char command(char* str){
@@ -419,6 +374,7 @@ char compileBye(){
 	return ERR_NOTHIN;
 }
 char compileEnd(){
+	checkCountFor();
 	copyCode(
 		"\xC3\x03\x15" // JP 0x1503
 		,3);
@@ -547,6 +503,12 @@ char compileFor(void){
 	register char *patch;
 	int variableAddress;
 
+
+	copyByte(0x3e);			// LD A,ERR_MISFOR
+	copyByte(ERR_MISFOR);
+	copyByte(0xcd);
+	copyInt((int)countStack);	// CALL countStack
+
 	// init statement
 	e=skipBlank();
 	variableAddress=(int)(&g_variables[(e-'A')*2]);
@@ -602,8 +564,6 @@ char compileFor(void){
 	((int*)patch)[0]=(int)object+2;
 	object+=29;
 
-	if (g_objPointer==0)
-		countFor++;
 
 	// g_objPointer will back to current line.
 	setLineNum();
@@ -618,21 +578,20 @@ char compileFor(void){
 	CALL back:
 */
 char compileNext(void){
-	if (g_objPointer==0){
-		if (countFor==0)
-			return ERR_MISMAT;
-		countFor--;
-	}
+	copyByte(0x3e);
+	copyByte(ERR_MISFOR);
+	copyByte(0xcd);
+	copyInt((int)preCheckStack);
+	copyByte(0x21);	// LD HL,retA
+	copyInt((int)object+4);
 	copyCode(
-		"\xE1"         // POP HL
-		"\x18\x01"     // JR skip:
-		"\xE9"         // back: JP (HL)
-		"\xCD\x34\x12" // skip: CALL back:
-		,7);
-	object+=5;
-	((int*)object)[0]=(int)object-2;
+		"\xe3"		// EX (SP),HL
+		"\xe9"		// JP (HL)
+		,2);
 	object+=2;
-	
+	copyByte(0x21);		// LD HL,countFor
+	copyInt((int)&countFor);
+	copyByte(0x35);		// DEC (HL)
 	return ERR_NOTHIN;
 }
 /*
@@ -668,7 +627,8 @@ char compileDebug(){
 	((int*)object)[2]=(int)(&g_temp161);
 	object+=12;
 	return 0;
-}//*/
+}
+*/
 char compileList(void){
 	register char b;
 	unsigned int from,to;
@@ -722,7 +682,13 @@ char compileGoto(void){
 	return ERR_NOTHIN;
 }
 char compileGosub(void){
-	char e;
+	register char e;
+
+	copyByte(0x3e);			// LD A,ERR_MISSUB
+	copyByte(ERR_MISSUB);
+	copyByte(0xcd);
+	copyInt((int)countStack);	// CALL countStack
+
 	copyCode("\xCD\x34\x12\x18\x06",5); // CALL skip:; JR ret:; skip:
 	object++;
 	((unsigned int*)object)[0]=(unsigned int)object+4;
@@ -734,22 +700,26 @@ char compileGosub(void){
 	return ERR_NOTHIN;
 }
 char compileRet(void){
+	copyByte(0x3e);
+	copyByte(ERR_MISSUB);
+	copyByte(0xcd);
+	copyInt((int)preCheckStack);
 	copyByte(0xC9); // RET
 	return ERR_NOTHIN;
 }
 char compileRun(void){
 	register char b;
-	copyByte(0xCD); // CALL XXXX
-	copyInt((int)clearMemory);
 	// Inhibit compileGoto() when only "RUN" entered
 	b=skipBlank();
-	if (b<'0' || '9'<b) {
+	if (b==0) {	
 		// No Code, No Error
 		if (g_sourceMemory==g_lastMemory) return ERR_NOTHIN;
+		copyByte(0xCD); // CALL clearMemory
+		copyInt((int)clearMemory);
 		// goTo(g_sourceMemory+3);
-		copyByte(0x21);
+		copyByte(0x21);		// LD HL,g_sourceMemory+3
 		copyInt((int)g_sourceMemory+3);
-		copyByte(0xC3);	//	JP _goTo;
+		copyByte(0xC3);		// JP _goTo;
 		copyInt((int)goTo);
 		return ERR_NOTHIN;
 	} else 
@@ -915,28 +885,6 @@ char compileDelete(void){
 	return ERR_NOTHIN;
 }
 #ifdef LOCAL_TEST
-
-STATEMENT_LIST* statementList(void) {
-
-	return forDebug;
-}
-
-FUNCPTR seekList(STATEMENT_LIST slist[]) {
-	while(1){
-		// Fetch pointer to function
-		if (slist->ptr==NULL) {
-			// End of statement list (not found)
-			return NULL;
-		}
-		// slist is now pointer to statement string to check
-		if (command(slist->kw)) {
-			// Statement/function found
-			return slist->ptr;
-		}
-		slist++;
-	}
-		
-}
 #else
 STATEMENT_LIST* statementList(void) __naked {
 	__asm
@@ -1012,8 +960,6 @@ STATEMENT_LIST* statementList(void) __naked {
 
 #pragma save
 #pragma disable_warning 85
-
-
 FUNCPTR seekList(STATEMENT_LIST* slist) __naked {
 	__asm
 		ld iy,#0
@@ -1048,11 +994,8 @@ FUNCPTR seekList(STATEMENT_LIST* slist) __naked {
 		jr skLop
 	__endasm;
 }
-
 #pragma restore
-
 #endif
-
 char compile(void) {
 	register STATEMENT_LIST* slist;
 	FUNCPTR sfunc;
@@ -1093,7 +1036,5 @@ char compile(void) {
 		}
 	}
 	if (g_ifElseJump) ((unsigned int*)g_ifElseJump)[0]=(unsigned int)object;
-	if (g_objPointer==0)
-		checkCountFor();
 	return ERR_NOTHIN;
 }

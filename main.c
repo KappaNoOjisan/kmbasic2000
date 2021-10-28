@@ -98,7 +98,9 @@ void main(void){
 			e=inputLine();
 			if (e) break;
 			e=skipBlank();
-			if ('0'<=e && e<='9') {
+			if ( e==0 )
+				continue;
+			else if ('0'<=e && e<='9') {
 				// Editing mode
 				e=addCode();
 				if (e) break;

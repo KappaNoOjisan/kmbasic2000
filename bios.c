@@ -111,18 +111,20 @@ void printDec(int value) __naked {
 }
 void printStr(char* str) __naked {
 	__asm
-		ld iy,#0
-		add iy,sp
-		ld l,2(iy)
-		ld h,3(iy)
+		ld hl,#2
+		add hl,sp
+		ld a,(hl)
+		inc hl
+		ld h,(hl)
+		ld l,a
 		jp __putStr
 	__endasm;
 }
 void printChar(const char value) __naked {
 	__asm
-		ld iy,#0
-		add iy,sp
-		ld a,2(iy)
+		ld hl,#2
+		add hl,sp
+		ld a,(hl)
 		rst 0x28
 		.db 0x01
 		ret
@@ -130,10 +132,12 @@ void printChar(const char value) __naked {
 }
 void printHex16(unsigned int value) __naked {
 	__asm
-		ld iy,#0
-		add iy,sp
-                ld l,2(iy)
-                ld h,3(iy)
+		ld hl,#2
+		add hl,sp
+                ld a,(hl)
+		inc hl
+                ld h,(hl)
+		ld l,a
 		rst 0x28
 		.db 0x19
 		ret
@@ -141,28 +145,90 @@ void printHex16(unsigned int value) __naked {
 }
 void printHex8(unsigned char value) __naked  {
 	__asm
-		ld iy,#0
-		add iy,sp
-		ld a,2(iy)
+		ld hl,#2
+		add hl,sp
+		ld a,(hl)
 		rst 0x28
 		.db 0x1a
 		ret
 	__endasm;
 }
+char countStack(void) __naked {
+	__asm
+		cp a,#(ERR_MISFOR)
+		ld hl,#(_countFor)
+		ld b,#(MAX_FOR_COUNT)
+		jr z,0002$
+		ld hl,#(_countGosub)
+		ld b,#(MAX_SUB_COUNT)
+	0002$:
+		ld a,(hl)
+		cp b
+		jr c,0003$
+		ld a,#(ERR_STKOVR)
+		jr _jmpErrAndEnd
+	0003$:
+		inc (hl)
+		ret
+	__endasm;
 
+}
+char jmpErrAndEnd(void) __naked {
+	__asm
+		push af
+		inc sp
+		call _errorAndEnd
+		inc sp
+		ret
+	__endasm;
+}
+char preCheckStack(void) __naked {
+	__asm
+		cp a,#(ERR_MISFOR)
+		ld hl,#(_countFor)
+		jr z,0002$
+		ld hl,#(_countGosub)		
+	0002$:
+		ld c,a
+		ld a,(hl)
+		or a
+		ret p
+		ld a,c
+		jr _jmpErrAndEnd
+	__endasm;
+}
+char checkStack(void) __naked {
+	__asm
+		ld hl,#(_countFor)
+		ld e,#0
+		ld a,(hl)
+		ld (hl),e
+		or a
+		ld a,#(ERR_MISFOR)
+		jr nz,_jmpErrAndEnd
+		ld hl,#(_countGosub)
+		ld a,(hl)
+		ld (hl),e
+		or a
+		ld l,e
+		ret z
+		ld a,#(ERR_MISSUB)
+		jr _jmpErrAndEnd
+	__endasm;
+}
 char callCode(int address) __naked {
 	__asm
-		ld iy,#0
-		add iy,sp
-		jr skip2
-		jump:
-		jp (HL)
-		skip2:
-		ld l,2(iy)
-		ld h,3(iy)
-		call jump
-		ld l,#0
-		ret
+		ld hl,#2
+		add hl,sp
+		ld e,(hl)
+		inc hl
+		ld d,(hl)
+		ld hl,#(0002$)
+		push hl
+		ex de,hl
+		jp (hl)
+	0002$:	
+		jp _checkStack
 	__endasm;
 }
 
