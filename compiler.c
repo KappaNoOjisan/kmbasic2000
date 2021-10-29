@@ -1,4 +1,4 @@
-/************************
+/***
 *  KM-BASIC for KMZ-80  *
 *       Katsumi         *
 * License: LGPL ver 2.1 *
@@ -8,25 +8,89 @@
 #ifdef LOCAL_TEST
 #include "dmyfunc.c"
 #else
-void checkCodeMemory(int len) {
-	if (g_sourceMemory<=len+(int)object) memoryError();
+void checkCodeMemory() {
+	//if (g_sourceMemory<=len+(int)object) memoryError();
+	__asm
+		push hl
+		push de
+		ld hl,(_object)
+		add hl,bc
+		ld de,(_g_sourceMemory)
+		or a
+		sbc hl,de
+		jr c,00103$
+		call _memoryError
+00103$:
+		pop de
+		pop hl
+	__endasm;
 }
 
 void copyCode(OBJECT_CODE code, int len){
-	checkCodeMemory(len+2);
-	memcpy(object,code,len);
+	//checkCodeMemory(len+2);
+	//memcpy(object,code,len);
+	__asm
+		ld hl,#2
+		add hl,sp
+		ld e,(hl)
+		inc hl
+		ld d,(hl)
+		inc hl
+		ld c,(hl)
+		inc hl
+		ld b,(hl)
+		inc bc
+		inc bc
+		call _checkCodeMemory
+		dec bc
+		dec bc
+		ld hl,(_object)
+		ex de,hl
+		ldir
+	__endasm;
 }
 
-void copyByte(char b){
-	checkCodeMemory(1);
-	object[0]=b;
-	object++;
+void copyByte(register char b){
+	//checkCodeMemory(1);
+	//*object++=b;
+	__asm
+		xor a
+		ld b,a
+		ld h,a
+		inc a
+		ld c,a
+		ld l,a
+		call _checkCodeMemory
+		inc hl
+		add hl,sp
+		ld a,(hl)	
+		ld hl,(_object)
+		ld (hl),a
+		inc hl
+		ld (_object),hl
+	__endasm;
 }
 
-void copyInt(int i){
-	checkCodeMemory(2);
-	((int*)object)[0]=i;
-	object+=2;
+void copyInt(register int i){
+	//checkCodeMemory(2);
+	//((int*)object)[0]=i;
+	__asm
+		ld bc,#2
+		call _checkCodeMemory
+		ld h,b
+		ld l,c
+		ld b,c
+		add hl,sp
+		ex de,hl
+		ld hl,(_object)
+	0002$:
+		ld a,(de)
+		inc de
+		ld (hl),a
+		inc hl
+		djnz 0002$
+		ld (_object),hl
+	__endasm;
 }
 
 char skipBlank(void) __naked {
@@ -700,10 +764,11 @@ char compileGosub(void){
 	return ERR_NOTHIN;
 }
 char compileRet(void){
-	copyByte(0x3e);
+	copyByte(0x3e);	// LD A,ERR_MISSUB
 	copyByte(ERR_MISSUB);
-	copyByte(0xcd);
+	copyByte(0xcd);	// CALL preCheckStack
 	copyInt((int)preCheckStack);
+	copyByte(0x35); // DEC (HL)
 	copyByte(0xC9); // RET
 	return ERR_NOTHIN;
 }

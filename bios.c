@@ -191,7 +191,7 @@ char preCheckStack(void) __naked {
 	0002$:
 		ld c,a
 		ld a,(hl)
-		or a
+		dec a
 		ret p
 		ld a,c
 		jr _jmpErrAndEnd

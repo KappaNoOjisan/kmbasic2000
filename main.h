@@ -33,7 +33,7 @@ typedef char *OBJECT_CODE;
 #define FILE_INFO 0x1300
 #define FIRST_MEMORY 0x4200
 #define LAST_MEMORY 0xdffe
-#define MAX_SUB_COUNT 4
+#define MAX_SUB_COUNT 6 
 #define MAX_FOR_COUNT 8
 typedef struct {
 	char atbr;
@@ -58,11 +58,12 @@ typedef struct {
 #define ERR_SYNTAX 1
 #define ERR_MEMORY 2
 #define ERR_NOLINE 3
-#define ERR_RESERV 4
-#define ERR_TYPEOF 5
-#define ERR_MISFOR 6
-#define ERR_MISSUB 7
-#define ERR_STKOVR 8
+#define ERR_TYPEOF 4
+#define ERR_MISFOR 5
+#define ERR_MISSUB 6
+#define ERR_STKOVR 7
+#define ERR_RESERV 8
+#define MAX_ERR_COUNT 9 
 
 // Global variables.
 // Note that only 56 bytes are available for global variables.
@@ -135,8 +136,8 @@ char callCode(int address) __naked;
 
 // compiler.c
 void copyCode(OBJECT_CODE code, int len);
-void copyByte(char b);
-void copyInt(int i);
+void copyByte(register char b);
+void copyInt(register int i);
 char command(char* str);
 char skipBlank();
 FUNCPTR seekList(STATEMENT_LIST* slist) __naked;
