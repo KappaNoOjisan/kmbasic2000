@@ -709,17 +709,17 @@ char compileRet(void){
 }
 char compileRun(void){
 	register char b;
+	copyByte(0xCD); // CALL clearMemory
+	copyInt((int)clearMemory);
 	// Inhibit compileGoto() when only "RUN" entered
 	b=skipBlank();
-	if (b==0) {	
+	if (b<'0' || '9'<b) {
 		// No Code, No Error
 		if (g_sourceMemory==g_lastMemory) return ERR_NOTHIN;
-		copyByte(0xCD); // CALL clearMemory
-		copyInt((int)clearMemory);
 		// goTo(g_sourceMemory+3);
 		copyByte(0x21);		// LD HL,g_sourceMemory+3
 		copyInt((int)g_sourceMemory+3);
-		copyByte(0xC3);		// JP _goTo;
+		copyByte(0xC3);		// JP goTo;
 		copyInt((int)goTo);
 		return ERR_NOTHIN;
 	} else 

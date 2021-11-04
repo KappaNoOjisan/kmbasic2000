@@ -58,11 +58,12 @@ typedef struct {
 #define ERR_SYNTAX 1
 #define ERR_MEMORY 2
 #define ERR_NOLINE 3
-#define ERR_RESERV 4
-#define ERR_TYPEOF 5
-#define ERR_MISFOR 6
-#define ERR_MISSUB 7
-#define ERR_STKOVR 8
+#define ERR_TYPEOF 4
+#define ERR_MISFOR 5
+#define ERR_MISSUB 6
+#define ERR_STKOVR 7
+#define ERR_RESERV 8
+#define MAX_ERR_COUNT 9 
 
 // Global variables.
 // Note that only 56 bytes are available for global variables.
@@ -167,7 +168,7 @@ void deleteCode(unsigned int from, unsigned int to);
 void printError(char type);
 void errorAndEnd(char type);
 void runCode() __naked;
-void goTo(void) __naked;
+char goTo(void) __naked;
 void getRand();
 void saveToTape();
 void loadFromTape();

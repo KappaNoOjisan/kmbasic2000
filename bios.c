@@ -175,10 +175,13 @@ char countStack(void) __naked {
 }
 char jmpErrAndEnd(void) __naked {
 	__asm
+		ld l,a
+		push hl
 		push af
 		inc sp
 		call _errorAndEnd
 		inc sp
+		pop hl
 		ret
 	__endasm;
 }
@@ -228,7 +231,10 @@ char callCode(int address) __naked {
 		ex de,hl
 		jp (hl)
 	0002$:	
-		jp _checkStack
+		ld a,l
+		or a
+		ret nz
+		jr _checkStack
 	__endasm;
 }
 

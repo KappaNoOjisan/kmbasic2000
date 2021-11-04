@@ -4,13 +4,6 @@
 * License: LGPL ver 2.1 *
 *************************/
 
-/*
-	Use following command to build:
-	sdcc *.rel -mz80 --code-loc 0x1500 --data-loc 0x3e00 --no-std-crt0 -Wlcrt\crt.asm.o
-
-	Note that only 56 bytes are available in data area, starting from 0x3e00
-	For char[], use constant as it will be embed in code area.
-*/
 #define MAIN
 #include "main.h"
 
@@ -27,7 +20,7 @@ void init(void){
 	g_lastMemory=LAST_MEMORY;
 	printHex16(g_firstMemory);
 	printConstChar(0x2D); //'-'
-	printHex16(g_lastMemory);
+	printHex16(g_lastMemory+1);
 	newLine();
 	g_lastMemory++;
 	printUnsignedDec(g_lastMemory-g_firstMemory);
@@ -92,6 +85,7 @@ char inputLine(void) __naked {
 void main(void){
 	register char e;
 	register char* tempObject;
+	char *compiled;
 	while(1){
 		while(1){
 			source=(char*)LINE_BUFFER;
@@ -110,15 +104,16 @@ void main(void){
 				object=tempObject=(char*)g_nextMemory;
 				e=compile();
 				if (e) break;
-				copyByte(0xC9); // ret
+				copyInt(0x002e);// LD L,0
+				copyByte(0xC9);	// RET
+				compiled=object;
 				g_nextMemory=(int)object;
 				e=callCode((int)tempObject);
-				if (e) break;
-				if (g_nextMemory==(int)object) {
-					// Destroy compiled code though new object is not attached.
-					// Otherwise, memory is allocated to string etc.
-					// You can go back to original position using clearMemory() function.
+				if (e || g_nextMemory==(int)compiled)
 					g_nextMemory=(int)tempObject;
+				if (e) {
+					e=0;  // Error had already reported.
+					continue;
 				}
 			}
 		}

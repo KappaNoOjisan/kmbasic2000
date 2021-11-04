@@ -36,8 +36,8 @@ unsigned int getDecimal(void) __naked {
 }
 
 /*	Format of a line.
-+0     LSB address in source
-+1     MSB address in source
++0     LSB line no
++1     MSB line no
 +2     source length (n)
 +3     LSB address of object code
 +4     MSB address of object code
@@ -55,7 +55,7 @@ char addCode(void){
 	clearMemory();
 	// Determine line number
 	e=skipBlank();
-	if (e<'0' || '9'<e) return 1;
+	if (e<'0' || '9'<e) return ERR_SYNTAX;
 	lineNum=getDecimal();
 	skipBlank();
 	// Check syntax
@@ -67,7 +67,7 @@ char addCode(void){
 	sourceLen=(unsigned int)source-sourceStart+1;
 	source=(char*)sourceStart;
 	// Check if available memory.
-	if (g_sourceMemory-g_firstMemory<sourceLen+5) return 2;
+	if (g_sourceMemory-g_firstMemory<sourceLen+5) return ERR_MEMORY;
 	// Delete the line with same number
 	sourceStart=g_sourceMemory;
 	while (sourceStart<g_lastMemory) {
@@ -80,7 +80,7 @@ char addCode(void){
 		sourceStart+=lineLen;
 	}
 	// Return if source code is null (the command is "delete a line").
-	if (sourceLen<2) return 0;
+	if (sourceLen<2) return ERR_NOTHIN;
 	// Allocate area for a line
 	if (g_sourceMemory==g_lastMemory) {
 		// The first line of code.

@@ -9,6 +9,17 @@
 #include "main.h"
 static FILEINFO* f=FILE_INFO;
 static unsigned int size;
+static char *errMsg[MAX_ERR_COUNT] = {
+	"ERROR\x0D",
+	"SYNTAX ERROR (\x0D",
+	"MEMORY FULL\x0D",
+	"NO SUCH LINE\x0D",
+	"TYPE MISMATCH\x0D",
+	"FOR..NEXT MISMATCH\x0D",
+	"GOSUB..RETURN MISMATCH\x0D",
+	"STACK OVER\x0D",
+	"RESERVED FEATURE\x0D"
+};
 
 // g_tempStr and g_temp161 are used here.
 char* initStr(){
@@ -116,33 +127,18 @@ void deleteCode(unsigned int from, unsigned int to){
 void printError(char type){
 	register char i;
 	newLine();
-	switch(type){
-		case ERR_NOTHIN:
-			return;
-		case ERR_SYNTAX:
-			printStr("SYNTAX ERROR (\x0D");
+	if (type==ERR_NOTHIN) 
+		return;
+	if (type>=MAX_ERR_COUNT ) {
+		printStr(errMsg[0]);
+		printUnsignedDec(type);
+	} else {
+		printStr(errMsg[type]);
+		if (type==ERR_SYNTAX) {
 			for (i=0;i<3;i++)
 				if (source[i]) printChar(source[i]); else break;
 			printChar(')');
-			break;
-		case ERR_MEMORY:
-			printStr("MEMORY FULL\x0D");
-			break;
-		case ERR_NOLINE: 
-			printStr("NO SUCH LINE\x0D");
-			break;			
-		case ERR_MISFOR:
-			printStr("FOR..NEXT MISMATCH\x0D");
-			break;
-		case ERR_MISSUB:
-			printStr("GOSUB..RETURN MISMATCH\x0D");
-			break;
-		case ERR_TYPEOF:
-			printStr("TYPE MISMATCH\x0D");
-			break;
-		default:
-			printStr("ERROR \x0D");
-			printUnsignedDec(type);
+		}
 	}
 	if (g_objPointer) {
 		printStr(" IN \x0D");
@@ -156,9 +152,6 @@ void errorAndEnd(char type) {
 	printError(type);
 	countFor=0;
 	countGosub=0;
-	__asm
-		JP 0x1503
-	__endasm;
 }
 
 void runNext(void) __naked {
@@ -171,6 +164,7 @@ void runNext(void) __naked {
 		__endasm;
 	} else {
 		__asm
+			ld a,#0
 			JP _checkStack
 		__endasm;
 	}
@@ -186,7 +180,7 @@ void runNext(void) __naked {
 		add hl,bc
 		add hl,de
 		ld bc,(_g_lastMemory)
-		or a
+		xor a
 		sbc hl,bc
 		jp nc,_checkStack
 		add hl,bc
@@ -203,7 +197,10 @@ void runCode(void) __naked {
 		source=(char*)(g_objPointer+2);
 		object=(char*)g_nextMemory;
 		e=compile();
-		if (e) errorAndEnd(e);
+		if (e) {
+			errorAndEnd(e);
+			return;
+		}
 		copyByte(0xC3); // JP _runNext 
 		copyInt((int)runNext);
 		((unsigned int*)g_objPointer)[0]=g_nextMemory;
@@ -219,7 +216,7 @@ void runCode(void) __naked {
 	__endasm;
 }
 
-void goTo(void) __naked {
+char goTo(void) __naked {
 	//if (hl==0) errorAndEnd(ERR_NOLINE);
 	//g_objPointer=addr;
 	__asm
@@ -230,10 +227,13 @@ void goTo(void) __naked {
 		jp _runCode
 	0002$:
 		ld a,#(ERR_NOLINE)
+		ld l,a
+		push hl
 		push af
 		inc sp
 		call _errorAndEnd
-		inc sp		
+		inc sp	
+		pop hl	
 		ret
 	__endasm;
 }
@@ -347,7 +347,10 @@ void loadFromTape(){
 	// Prepare to load
 	clearMemory();
 	g_sourceMemory=g_lastMemory;
-	if (g_lastMemory-g_firstMemory<size) errorAndEnd(ERR_MEMORY); // Not enough memory to load
+	if (g_lastMemory-g_firstMemory<size) {
+		errorAndEnd(ERR_MEMORY); // Not enough memory to load
+		return;
+	}
 	g_sourceMemory=g_lastMemory-size;
 	f->dtadr=g_sourceMemory;
 	// Load data
