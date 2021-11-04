@@ -136,8 +136,8 @@ char callCode(int address) __naked;
 
 // compiler.c
 void copyCode(OBJECT_CODE code, int len);
-void copyByte(register char b);
-void copyInt(register int i);
+void copyByte(char b);
+void copyInt(int i);
 char command(char* str);
 char skipBlank();
 FUNCPTR seekList(STATEMENT_LIST* slist) __naked;

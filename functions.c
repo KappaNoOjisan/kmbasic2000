@@ -30,7 +30,7 @@ char* decStr(int num){
 	}
 	return str;
 }
-char* hexStr(register unsigned int num){
+char* hexStr(unsigned int num){
 	register char* str;
 	memcpy(g_strBuff,"0000\x0D",5);
 	str=&g_strBuff[4];

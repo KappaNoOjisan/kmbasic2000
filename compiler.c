@@ -8,7 +8,9 @@
 #ifdef LOCAL_TEST
 #include "dmyfunc.c"
 #else
-void checkCodeMemory() {
+#pragma save
+#pragma disable_warning 85
+void checkCodeMemory(void) {
 	//if (g_sourceMemory<=len+(int)object) memoryError();
 	__asm
 		push hl
@@ -50,7 +52,7 @@ void copyCode(OBJECT_CODE code, int len){
 	__endasm;
 }
 
-void copyByte(register char b){
+void copyByte(char b){
 	//checkCodeMemory(1);
 	//*object++=b;
 	__asm
@@ -71,7 +73,7 @@ void copyByte(register char b){
 	__endasm;
 }
 
-void copyInt(register int i){
+void copyInt(int i){
 	//checkCodeMemory(2);
 	//((int*)object)[0]=i;
 	__asm
@@ -108,6 +110,7 @@ char skipBlank(void) __naked {
 		ret
 	__endasm;
 }
+#pragma restore
 #endif
 char checkCountFor(void) {
 	// reset stack
