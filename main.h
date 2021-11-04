@@ -33,7 +33,7 @@ typedef char *OBJECT_CODE;
 #define FILE_INFO 0x1300
 #define FIRST_MEMORY 0x4200
 #define LAST_MEMORY 0xdffe
-#define MAX_SUB_COUNT 4
+#define MAX_SUB_COUNT 6 
 #define MAX_FOR_COUNT 8
 typedef struct {
 	char atbr;
@@ -136,8 +136,8 @@ char callCode(int address) __naked;
 
 // compiler.c
 void copyCode(OBJECT_CODE code, int len);
-void copyByte(char b);
-void copyInt(int i);
+void copyByte(register char b);
+void copyInt(register int i);
 char command(char* str);
 char skipBlank();
 FUNCPTR seekList(STATEMENT_LIST* slist) __naked;
