@@ -148,12 +148,6 @@ void printError(char type){
 	bell();
 }
 
-void errorAndEnd(char type) {
-	printError(type);
-	countFor=0;
-	countGosub=0;
-}
-
 void runNext(void) __naked {
 	/*
 	g_objPointer--;
@@ -172,20 +166,19 @@ void runNext(void) __naked {
 	__asm
 		ld hl,(_g_objPointer)
 		dec hl
-		ld c,(hl)
-		xor a
-		ld b,a
-		ld d,a
-		ld e,#6
-		add hl,bc
+		ld a,(hl)
+		add a,#6
+		ld e,a
+		ld d,#0
 		add hl,de
-		ld bc,(_g_lastMemory)
-		xor a
-		sbc hl,bc
-		jp nc,_checkStack
-		add hl,bc
-		ld (_g_objPointer),hl
-		jp _runCode
+		ld de,(_g_lastMemory)
+		ld b,h
+		ld c,l
+		sbc hl,de
+		ld l,#0
+		ret nc
+		ld (_g_objPointer),bc
+		jr _runCode
 	__endasm;
 }
 
@@ -198,8 +191,10 @@ void runCode(void) __naked {
 		object=(char*)g_nextMemory;
 		e=compile();
 		if (e) {
-			errorAndEnd(e);
-			return;
+			printError(e);
+			__asm
+				ret
+			__endasm;
 		}
 		copyByte(0xC3); // JP _runNext 
 		copyInt((int)runNext);
@@ -214,26 +209,67 @@ void runCode(void) __naked {
 		LD L,A
 		JP (HL)
 	__endasm;
+/*
+	__asm
+		ld hl,(_g_objPointer)
+		ld e,(hl)
+		inc hl
+		ld d,(hl)
+		ld a,d
+		or a,e
+		jr z,0002$
+		ex de,hl
+		jp (hl)
+	0002$:
+		inc hl
+		inc hl
+		ld (_source),hl
+		ld hl,(_g_NextMemory)
+		ld (_object),hl
+		call _compile	
+		ld a,l
+		or a
+		jr z,0003$
+		push af
+		inc sp
+		call _printError
+		inc sp
+		ret
+	0003$:
+		ld hl,(_object)
+		ld (hl),#0xc3
+		inc hl
+		ld bc,#_runNext
+		ld (hl),c
+		inc hl
+		ld (hl),b
+		inc hl
+		ld (_object),hl
+		ex de,hl
+		ld hl,(_g_objPointer)
+		ld bc,(_g_nextMemory)
+		ld (hl),c
+		inc hl
+		ld (hl),b
+		ld (_g_nextMemory),de
+		ld h,b
+		ld l,c
+		jp (hl)
+	__endasm;
+*/
 }
 
 char goTo(void) __naked {
-	//if (hl==0) errorAndEnd(ERR_NOLINE);
+	//if (hl==0) printError(ERR_NOLINE);
 	//g_objPointer=addr;
 	__asm
 		ld a,h
 		or a,l
 		jr z,0002$
 		ld (_g_objPointer),hl
-		jp _runCode
+		jr _runCode
 	0002$:
-		ld a,#(ERR_NOLINE)
-		ld l,a
-		push hl
-		push af
-		inc sp
-		call _errorAndEnd
-		inc sp	
-		pop hl	
+		ld l,#(ERR_NOLINE)
 		ret
 	__endasm;
 }
@@ -285,7 +321,8 @@ void saveToTape(){
 		ld hl,(_f)
 		ld (hl),#2
 		inc hl
-	0002$:	ld a,(de)
+	0002$:
+		ld a,(de)
 		cp a,#0x0d
 		jr z,0003$
 		inc de
@@ -293,7 +330,8 @@ void saveToTape(){
 		inc hl
 		dec b
 		jr 0002$
-	0003$:	ld (hl),a
+	0003$:
+		ld (hl),a
 		inc hl
 		djnz 0003$
 	__endasm;
@@ -348,7 +386,7 @@ void loadFromTape(){
 	clearMemory();
 	g_sourceMemory=g_lastMemory;
 	if (g_lastMemory-g_firstMemory<size) {
-		errorAndEnd(ERR_MEMORY); // Not enough memory to load
+		printError(ERR_MEMORY); // Not enough memory to load
 		return;
 	}
 	g_sourceMemory=g_lastMemory-size;
@@ -364,7 +402,7 @@ void loadFromTape(){
 		ld a,#(ERR_NOTHIN);
 		push af
 		inc sp
-		call _errorAndEnd
+		call _printError
 		inc sp
 		ret
 

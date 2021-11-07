@@ -37,7 +37,7 @@ void clearMemory(void){
 
 	// for .. next counter 
 	countFor=0;	
-	countGosub=0;
+	countSub=0;
 }
 
 char* allocateMemory(int len){

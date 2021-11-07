@@ -5,11 +5,146 @@
 *************************/
 #include "main.h"
 
+FOR_TABLE forT[MAX_FOR_COUNT];
+SUB_TABLE subT[MAX_SUB_COUNT];
+
 #ifdef LOCAL_TEST
 #include "dmyfunc.c"
 #else
 #pragma save
 #pragma disable_warning 85
+void ldForAdr(void) __naked {
+	__asm
+		ld a,(_countFor)
+		dec a
+		ld l,a
+		ld h,#0
+		ld de,#7
+		call _mul
+		ex de,hl
+		ld hl,#(_forT)
+		add hl,de
+		ret
+	__endasm;
+}
+void registerFor(void) __naked {
+	__asm
+		push de	; limit
+		push hl	; step
+		push bc ; vofs
+		call _ldForAdr
+		pop bc
+		ld (hl),b ; vofs
+		inc hl
+		ld b,#3
+	00002$:
+		pop de ; step..limit..jmp
+		ld (hl),e
+		inc hl
+		ld (hl),d
+		inc hl
+		djnz 00002$
+		push de
+		ret
+	__endasm;		
+			
+}
+char restoreFor(void) __naked {
+	__asm
+		ld a,#(ERR_MISFOR)
+		call _preCheckStack
+		ret m
+		call _ldForAdr
+		ld e,(hl) ; de=vofs
+		inc hl
+		ld d,#0
+		ld iy,#(_g_variables)
+		add iy,de ; iy= varAdr
+		ld e,(hl)
+		inc hl
+		ld d,(hl) ; de=step
+		inc hl
+		ld a,d
+		ld c,(hl)
+		inc hl
+		ld b,(hl) ; bc=limit
+		push hl
+		ld l,0(iy)
+		ld h,1(iy)
+		add hl,de
+		ld 0(iy),l
+		ld 1(iy),h ; (varAdr)+=step
+		ld e,c
+		ld d,b ; de=limit
+		rla
+		jr nc,00002$
+		ex de,hl 
+	00002$:
+		scf
+		sbc hl,de
+		pop hl
+		jp p,00003$
+		inc hl
+		ld a,(hl)
+		inc hl
+		ld h,(hl)
+		ld l,a
+		ex (sp),hl
+		ret
+	00003$:
+		ld hl,#(_countFor)
+		dec (hl)
+		ret	
+	__endasm;
+}
+void ldSubAdr(void) __naked {
+	__asm
+		ld a,(_countSub)
+		dec a
+		add a,a
+		ld e,a
+		ld d,#0
+		ld hl,#(_subT)
+		add hl,de
+		ret
+	__endasm;
+}
+void registerSub(void) __naked {
+	__asm
+		ld a,#(ERR_MISSUB)
+		call _countStack
+		ret z
+		call _ldSubAdr
+		pop de ; retAdr
+		ex de,hl
+		ld bc,#7	; ret z; ld hl,xxxx; jp xxxx
+		add hl,bc
+		ex de,hl
+		ld (hl),e
+		inc hl
+		ld (hl),d
+		dec sp
+		dec sp
+		or a,c ; clear Z flag
+		ret
+	__endasm;
+}
+void restoreSub(void) __naked {
+	__asm
+		ld a,#(ERR_MISSUB)
+		call _preCheckStack
+		ret m
+		call _ldSubAdr
+		ld a,(hl) ; retAdr
+		inc hl
+		ld h,(hl)
+		ld l,a
+		ex (sp),hl
+		ld hl,#(_countSub)
+		dec (hl)
+		ret		
+	__endasm;
+}
 void checkCodeMemory(void) {
 	//if (g_sourceMemory<=len+(int)object) memoryError();
 	__asm
@@ -112,14 +247,6 @@ char skipBlank(void) __naked {
 }
 #pragma restore
 #endif
-char checkCountFor(void) {
-	// reset stack
-	copyByte(0xCD);			// CALL checkStack
-	copyInt((int)checkStack);
-					// CALL NZ,restoreStack
-	return ERR_NOTHIN; 
-}
-
 char command(char* str){
 	int len;
 	for(len=0;str[len];len++);
@@ -395,7 +522,7 @@ char compilePrint(void){
 			case ',':
 				cr=0;
 				source++;
-				// LD A,11h; ef01
+				// LD A,11h; RST 28H; DEFB 01
 				copyCode("\x3e\x11\xef\x01",4);
 				object+=4;
 				continue;
@@ -437,15 +564,12 @@ char compileBye(){
 	copyCode(
 		"\xC3\xf0\x00" // JP 0x00f0
 		,3);
-	object+=6;
+	object+=3;
 	return ERR_NOTHIN;
 }
 char compileEnd(){
-	checkCountFor();
-	copyCode(
-		"\xC3\x03\x15" // JP 0x1503
-		,3);
-	object+=3;
+	copyInt(0x002e);	// LD L,#0
+	copyByte(0xC9);		// RET
 	return ERR_NOTHIN;
 }
 char compileNew(){
@@ -538,48 +662,44 @@ void setLineNum(void){
 	((unsigned int*)object)[0]=g_objPointer;
 	object+=5;
 }
-/*	FOR A=1 TO XX STEP YY
-	, where "A=1" is any initialization statement, XX and YY are any values.
-	"STEP YY" may be omitted, meaning "STEP 1"
-	Object code will be:
-	(initialization)
-	(put XX values to DE)
-	PUSH DE
-	(put YY values to DE) // Maybe omitted.
-	LD (yyyy),DE // See 7 lines below. Maybe omitted.
-	POP HL
-	ADD HL,DE
-	LD (xxxx),HL // See 8 lines below
-	JR skip:
-	// Process comes here when "NEXT" statement is executed.
-	LD HL,(nn) // initialized variable
-	LD DE,0x0001 or LD DE,YY (modified above)
-	ADD HL,DE
-	LD (nn),HL // initialized variable
-	XOR A // reset C flag
-	LD DE,XX (modified above)
-	SBC HL,DE
-	RET Z
-	POP HL
-	skip:
-	LD HL,nn // The address of 10 lines above
-	PUSH HL
+/*	FOR var=initValue TO limitValue STEP stepValue 
+
+	LD A,#ERR_MISSFOR
+	CALL countStack
+
+	; for var=init
+	(LD DE,init)
+	LD (var),DE
+	LD B,#vofs
+
+	; TO limit
+	(LD DE,limit)
+	EX DE,HL
+
+	; STEP step
+	(LD DE,step)
+	EX DE,HL
+
+	CALL saveStack
 */
 char compileFor(void){
 	register char e;
 	register char *patch;
+	char vofs;
 	int variableAddress;
-
 
 	copyByte(0x3e);			// LD A,ERR_MISFOR
 	copyByte(ERR_MISFOR);
 	copyByte(0xcd);
 	copyInt((int)countStack);	// CALL countStack
-
+	copyByte(0xC8);			// RET Z
 	// init statement
 	e=skipBlank();
-	variableAddress=(int)(&g_variables[(e-'A')*2]);
+	vofs = (e-'A')*2;
+	variableAddress=(int)(&g_variables[vofs]);
 	e=compileLet();
+	copyByte(0x06); // LD B,#vofs
+	copyByte(vofs);
 	if (e) return e;
 	// TO statement
 	if (strncmp(source,"TO ",3)) return ERR_SYNTAX;
@@ -590,75 +710,27 @@ char compileFor(void){
 	skipBlank();
 	if (!strncmp(source,"STEP ",5)) {
 		source+=5;
-		copyByte(0xD5); // PUSH DE
+		copyByte(0xEb); // EX DE,HL
 		e=compileInt();
 		if (e) return e;
-		copyCode("\xED\x53",2); // LD DE,YY
-		object+=2;
-		copyInt((int)object+12);
-		copyByte(0xE1);	// POP HL
+		copyByte(0xEb);	// EX DE,HL
 	} else {
 		// STEP 1
-		copyByte(0xeb);	// EX DE,HL
+		copyByte(0x21); // LD HL,1
+		copyInt(1);
 	}
 
-	copyByte(0x22);		//LD (LIMIT),HL
-	copyInt((int)object+16);
-	// FOR statment 
-	copyCode(
-		"\x18\x17"	// JR skip:
-		"\x2A\x34\x12"	// next:LD HL,(VAR)
-		"\x11\x01\x00"	// LD DE,STEP
-		"\x7a"		// LD A,D
-		"\x19"		// ADD HL,DE
-		"\x22\x34\x12"	// LD (VAR),HL
-		"\x11\x34\x12"  // LD DE,LIMIT
-		"\x17"		// RLA
-		"\x30\x01"	// JR nc,skip2
-		"\xeb"		// EX DE,HL
-		"\x37"		// skip2: SCF
-		"\xED\x52"      // SBC HL,DE
-		"\xF0"          // RET P
-		"\xE1"          // POP HL
-		"\x21\x34\x12"  // skip: LD HL,next
-		"\xE5"          // PUSH HL
-		,29);
-	patch=object+3;
-	((int*)patch)[0]=variableAddress;
-	patch=object+11;
-	((int*)patch)[0]=variableAddress;
-	patch=object+26;
-	((int*)patch)[0]=(int)object+2;
-	object+=29;
-
+	copyByte(0xcd);		// CALL registerFor
+	copyInt((int)registerFor);
 
 	// g_objPointer will back to current line.
 	setLineNum();
 	return ERR_NOTHIN;
 }
-/*	NEXT statement
-	POP HL
-	JR skip:
-	back:
-	JP (HL)
-	skip:
-	CALL back:
-*/
 char compileNext(void){
-	copyByte(0x3e);
-	copyByte(ERR_MISFOR);
-	copyByte(0xcd);
-	copyInt((int)preCheckStack);
-	copyByte(0x21);	// LD HL,retA
-	copyInt((int)object+4);
-	copyCode(
-		"\xe3"		// EX (SP),HL
-		"\xe9"		// JP (HL)
-		,2);
-	object+=2;
-	copyByte(0x21);		// LD HL,countFor
-	copyInt((int)&countFor);
-	copyByte(0x35);		// DEC (HL)
+	copyByte(0xCD);		// CALL restoreFor
+	copyInt((int)restoreFor);
+	copyByte(0xF8);		// RET M
 	return ERR_NOTHIN;
 }
 /*
@@ -723,16 +795,15 @@ char compileClear(void){
 	copyInt((int)clearMemory);
 	return ERR_NOTHIN;
 }
-char compileGoto(void){
-	register char b;
-	unsigned int i, sourcePos;
+unsigned int getDest(void) {
+	register unsigned int i,sourcePos;
+	char b;
 	b=skipBlank();
 	if (b<'0' || '9'<b) {
 		i=0;
 	} else {
 		i=getDecimal();
 	}
-	//check Destination
 	sourcePos=g_sourceMemory;
 	while (sourcePos<g_lastMemory) {
 		if (i==((unsigned int*)sourcePos)[0]) {
@@ -742,37 +813,38 @@ char compileGoto(void){
 		sourcePos+=((unsigned char*)sourcePos)[2]+5;
 	}
 	if (g_lastMemory<=sourcePos) sourcePos=0;
+	return sourcePos;
+}
+void genGoto(unsigned int Dest) {
 	copyByte(0x21);
-	copyInt((int)sourcePos);	// LD HL,#sourcePos
+	copyInt(Dest);			// LD HL,Dest
 	copyByte(0xC3);
 	copyInt((unsigned int)goTo);	// JP goTo
+}
+char compileGoto(void){
+	register unsigned int sourcePos;
+	//check Destination
+	sourcePos=getDest();
+	genGoto(sourcePos);
 	return ERR_NOTHIN;
 }
 char compileGosub(void){
-	register char e;
-
-	copyByte(0x3e);			// LD A,ERR_MISSUB
-	copyByte(ERR_MISSUB);
-	copyByte(0xcd);
-	copyInt((int)countStack);	// CALL countStack
-
-	copyCode("\xCD\x34\x12\x18\x06",5); // CALL skip:; JR ret:; skip:
-	object++;
-	((unsigned int*)object)[0]=(unsigned int)object+4;
-	object+=4;
-	e=compileGoto();
-	if (e) return e;
+	register unsigned int sourcePos;
+	sourcePos=getDest();
+	if (sourcePos) {
+		copyByte(0xCd);			// CALL registerSub
+		copyInt((int)registerSub);	
+		copyByte(0xc8); 		// RET Z
+	}
+	genGoto(sourcePos);
 	// g_objPointer will back to current line.
 	setLineNum();
 	return ERR_NOTHIN;
 }
 char compileRet(void){
-	copyByte(0x3e);	// LD A,ERR_MISSUB
-	copyByte(ERR_MISSUB);
-	copyByte(0xcd);	// CALL preCheckStack
-	copyInt((int)preCheckStack);
-	copyByte(0x35); // DEC (HL)
-	copyByte(0xC9); // RET
+	copyByte(0xcd); // CALL restoreSub
+	copyInt((int)restoreSub);
+	copyByte(0xF8); // RET M
 	return ERR_NOTHIN;
 }
 char compileRun(void){

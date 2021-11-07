@@ -16,7 +16,7 @@ typedef char (*FUNCPTR)(void);
 #define __naked
 typedef struct {
 	FUNCPTR ptr;
-	char kw[8];
+	char kw[];
 } STATEMENT_LIST;
 typedef unsigned char OBJECT_CODE[10];
 
@@ -27,7 +27,14 @@ typedef char *OBJECT_CODE;
 
 #endif
 
+typedef struct {
+	unsigned char vofs;
+	unsigned int step;
+	unsigned int limit;
+	unsigned int jmp;
+} FOR_TABLE;
 
+typedef unsigned int SUB_TABLE;
 
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
@@ -86,7 +93,7 @@ typedef struct {
 	char* object;
 	char wkbuff[160+1];
 	char countFor;
-	char countGosub;
+	char countSub;
 #else
 	extern const char g_strBuff[];
 	extern const char g_variables[];
@@ -99,7 +106,7 @@ typedef struct {
 	volatile extern char* source;
 	extern char* object;
 	extern char countFor;
-	extern char countGosub;
+	extern char countSub;
 #endif
 
 // Macros to turn (const unsigned int) to (unsigned int)

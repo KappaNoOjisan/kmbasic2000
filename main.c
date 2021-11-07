@@ -83,9 +83,9 @@ char inputLine(void) __naked {
 
 }
 void main(void){
-	register char e;
 	register char* tempObject;
-	char *compiled;
+	register char *compiled;
+	char e;
 	while(1){
 		while(1){
 			source=(char*)LINE_BUFFER;
@@ -109,11 +109,12 @@ void main(void){
 				compiled=object;
 				g_nextMemory=(int)object;
 				e=callCode((int)tempObject);
-				if (e || g_nextMemory==(int)compiled)
+				if (e || g_nextMemory==(int)compiled) {
 					g_nextMemory=(int)tempObject;
-				if (e) {
-					e=0;  // Error had already reported.
-					continue;
+					if (e) {
+						countSub=countFor=0;
+						break;
+					}
 				}
 			}
 		}

@@ -159,64 +159,53 @@ char countStack(void) __naked {
 		ld hl,#(_countFor)
 		ld b,#(MAX_FOR_COUNT)
 		jr z,0002$
-		ld hl,#(_countGosub)
+		ld hl,#(_countSub)
 		ld b,#(MAX_SUB_COUNT)
 	0002$:
 		ld a,(hl)
 		cp b
 		jr c,0003$
-		ld a,#(ERR_STKOVR)
-		jr _jmpErrAndEnd
+		ld l,#(ERR_STKOVR)
+		xor a
+		ret
 	0003$:
 		inc (hl)
 		ret
 	__endasm;
 
 }
-char jmpErrAndEnd(void) __naked {
-	__asm
-		ld l,a
-		push hl
-		push af
-		inc sp
-		call _errorAndEnd
-		inc sp
-		pop hl
-		ret
-	__endasm;
-}
 char preCheckStack(void) __naked {
 	__asm
 		cp a,#(ERR_MISFOR)
 		ld hl,#(_countFor)
 		jr z,0002$
-		ld hl,#(_countGosub)		
+		ld hl,#(_countSub)		
 	0002$:
-		ld c,a
-		ld a,(hl)
-		dec a
+		ld c,(hl)
+		dec c
+		ld l,#0
 		ret p
-		ld a,c
-		jr _jmpErrAndEnd
+		ld l,a
+		ret
 	__endasm;
 }
 char checkStack(void) __naked {
 	__asm
+		ld e,l
 		ld hl,#(_countFor)
-		ld e,#0
 		ld a,(hl)
-		ld (hl),e
 		or a
-		ld a,#(ERR_MISFOR)
-		jr nz,_jmpErrAndEnd
-		ld hl,#(_countGosub)
+		jr z,0002$
+		ld l,#(ERR_MISFOR)
+		ret
+	0002$:
+		ld hl,#(_countSub)
 		ld a,(hl)
-		ld (hl),e
 		or a
 		ld l,e
 		ret z
-		ld a,#(ERR_MISSUB)
-		jr _jmpErrAndEnd
+		ld l,#(ERR_MISSUB)
+		ret
 	__endasm;
 }
 char callCode(int address) __naked {
@@ -231,9 +220,6 @@ char callCode(int address) __naked {
 		ex de,hl
 		jp (hl)
 	0002$:	
-		ld a,l
-		or a
-		ret nz
 		jr _checkStack
 	__endasm;
 }
