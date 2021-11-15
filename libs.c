@@ -18,17 +18,35 @@ static char *errMsg[MAX_ERR_COUNT] = {
 	"FOR..NEXT MISMATCH\x0D",
 	"GOSUB..RETURN MISMATCH\x0D",
 	"STACK OVER\x0D",
-	"RESERVED FEATURE\x0D"
+	"RESERVED FEATURE\x0D",
+	"DUPLICATE ID\x0D",
+	"SUBSCRIPT ERROR\x0D"
 };
 
 // g_tempStr and g_temp161 are used here.
-char* initStr(){
+char* initStr(void) __naked {
+/*
 	g_tempStr=allocateMemory(81);
 	g_tempStr[0]=0x0D;
 	g_temp161=80;
 	return g_tempStr;
+*/
+	__asm
+		ld de,#(81)
+		push de
+		call _allocateMemory
+		pop de
+		ld (_g_tempStr),hl
+		ld (hl),#0x0d
+		dec de
+		ld (_g_temp161),de
+		ret
+	__endasm;
 }
-void addStr(char* str2, char* str1){
+#pragma save
+#pragma disable_warning 85
+void addStr(char* str2, char* str1) __naked {
+/*
 	while (str1[0]!=0x0D) str1++;
 	while((str1[0]=str2[0])!=0x0D) {
 		if (!g_temp161) {
@@ -40,7 +58,66 @@ void addStr(char* str2, char* str1){
 		str1++;
 		str2++;
 	}
+*/
+	__asm
+		ld hl,#2
+		add hl,sp
+		ld e,(hl)
+		inc hl
+		ld d,(hl)	; de=str2
+		inc hl
+		ld c,(hl)
+		inc hl
+		ld b,(hl)	; bc=str1
+	; while(*str1!=0x0d) str1++;
+		ld h,#0x0d
+	00102$:
+		ld a,(bc)
+		cp a,h
+		jr z,00115$
+		inc bc
+		jr 00102$
+	; while ((*str1=*str2)!=0x0d) {
+	00115$:
+		ld a,(de)
+		ld (bc),a
+		cp a,h
+		jr z,00107$
+	00106$:
+	; if (!g_temp161) {
+		push hl
+		ld hl,#(_g_temp161)
+		ld a,(hl)
+		inc hl
+		or (hl)
+		dec hl
+		jr nz,00105$
+	; *str1=0x0d;
+		pop hl
+		ld a,h
+		ld (bc),a
+	; break;
+		jr 00107$
+	; g_temp161--
+	00105$:
+		dec (hl)
+		inc hl
+		jr nc,00104$
+		dec (hl)
+	00104$:
+		pop hl
+	; str1++;
+		inc de
+	; str2++;
+		inc bc
+	; }
+		jr 00115$
+	00107$:
+		ret	
+	__endasm;
 }
+#pragma restore
+
 void afterStr(int* var){
 	char* dest;
 	if (*var==0) {
@@ -183,6 +260,7 @@ void runNext(void) __naked {
 }
 
 void runCode(void) __naked {
+/*
 	register char e;
 	// Check if compiled
 	if (((unsigned int*)g_objPointer)[0]==0) {
@@ -209,22 +287,21 @@ void runCode(void) __naked {
 		LD L,A
 		JP (HL)
 	__endasm;
-/*
+*/
 	__asm
 		ld hl,(_g_objPointer)
 		ld e,(hl)
 		inc hl
 		ld d,(hl)
+		inc hl
 		ld a,d
 		or a,e
 		jr z,0002$
 		ex de,hl
 		jp (hl)
 	0002$:
-		inc hl
-		inc hl
 		ld (_source),hl
-		ld hl,(_g_NextMemory)
+		ld hl,(_g_nextMemory)
 		ld (_object),hl
 		call _compile	
 		ld a,l
@@ -256,7 +333,6 @@ void runCode(void) __naked {
 		ld l,c
 		jp (hl)
 	__endasm;
-*/
 }
 
 char goTo(void) __naked {

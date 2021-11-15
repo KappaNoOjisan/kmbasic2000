@@ -1,5 +1,5 @@
 PROG	= release.ihx
-SRCS	= bios.c editor.c libs.c memory.c compiler.c functions.c main.c
+SRCS	= idtable.c bios.c editor.c libs.c memory.c compiler.c functions.c main.c
 OBJS	= $(SRCS:.c=.rel) 
 LSTS	= $(SRCS:.c=.lst)
 ASMS	= $(SRCS:.c=.asm)
@@ -8,10 +8,10 @@ RELS	= $(SRCS:.c=.rel)
 
 CC	= sdcc
 CFLAG	= -mz80 -c
-CFLA2	= -mz80 --code-loc 0x1500 --data-loc 0x4080 --no-std-crt0
+CFLA2	= -mz80 --code-loc 0x1500 --data-loc 0x4600 --no-std-crt0
 ASM	= sdasz80
 
-$(PROG): $(OBJS) crt/crt.rel
+$(PROG): $(OBJS) crt/crt.rel Makefile
 	$(CC) crt/crt.rel $(RELS) $(CFLA2)
 	mv crt.ihx release.ihx
 
@@ -40,6 +40,9 @@ editor.rel: editor.c main.h macros.h
 
 bios.rel: bios.c main.h macros.h
 	$(CC) $(CFLAG) bios.c
+
+idtable.rel: idtable.c main.h macros.h
+	$(CC) $(CFLAG) idtable.c
 
 clean:
 	rm crt/crt.rel

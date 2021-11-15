@@ -3,8 +3,36 @@
 *       Katsumi         *
 * License: LGPL ver 2.1 *
 *************************/
-
+#ifndef LOCAL_TEST
 #include "main.h"
+#else
+char funcAbs(void);
+char funcAsc(void);
+char funcChr(void);
+STATEMENT_LIST flist[]={
+	{
+		.ptr=funcAbs,
+		.kw="ABS"
+	},{
+		.ptr=funcAsc,
+		.kw="ASC"
+	},{
+		.ptr=NULL,
+		.kw=""
+	}
+};
+
+STATEMENT_LIST sflist[]={
+	{
+		.ptr=funcChr,
+		.kw="CHR$"
+	},{
+		.ptr=NULL,
+		.kw=""
+	}
+
+};
+#endif
 
 // Library follows
 int valInt(char* str){
@@ -166,12 +194,12 @@ char funcPeek(){
 	char e;
 	e=compileInt();
 	if (e) return e;
-	copyCode("\x62\x6B\x5E\x16\x00",5); // LD H,D; LD L,E; LD E,(HL) LD D,00;
-	object+=5;
+	copyCode("\x1a\x16\x00\x5f",4); // LD A,(DE); LD D,0; LD E,A
+	object+=4;
 	return 0;
 }
 char funcRnd(){
-	copyByte(0xCD); // CALL XXXX
+	copyByte(0xCD); // CALL getRand
 	copyInt((int)getRand);
 	return 0;
 }
@@ -242,8 +270,16 @@ char funcStrncmp(){
 	object+=18;
 	return 0;
 }
+#ifdef LOCAL_TEST
+STATEMENT_LIST* funcList(){
+	return flist;
 
-char* funcList(){
+}
+STATEMENT_LIST* strFuncList(){
+	return sflist;
+}
+#else
+STATEMENT_LIST* funcList(void){
 	__asm
 		ld hl,#flist
 		ret
@@ -283,7 +319,7 @@ char* funcList(){
 	return 0;
 }
 
-char* strFuncList(){
+STATEMENT_LIST* strFuncList(void){
 	__asm
 		ld hl,#sflist
 		ret
@@ -304,12 +340,14 @@ char* strFuncList(){
 	__endasm;
 	return 0;
 }
+#endif
+
 char compileFuncSub(char* slist){
 	char e;
 	char (*sfunc)();
 	sfunc=seekList(slist);
-	if (!sfunc) return 1;
-	if (skipBlank()!='(') return 1;\
+	if (!sfunc) return ERR_SYNTAX;
+	if (skipBlank()!='(') return ERR_SYNTAX;
 	source++;
 	e=sfunc();
 	if (e) return e;
@@ -317,9 +355,9 @@ char compileFuncSub(char* slist){
 	source++;
 	return 0;
 }
-char compileIntFunc(){
+char compileIntFunc(void){
 	return compileFuncSub(funcList());
 }
-char compileStrFunc(){
+char compileStrFunc(void){
 	return compileFuncSub(strFuncList());
 }

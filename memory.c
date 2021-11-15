@@ -20,7 +20,6 @@ void clearMemory(void){
 	int* buff=(int*)&g_variables;
 	for (b=0;b<26;b++) { 
 		buff[b]=0x0;
-		g_vardesc[b]=VAR_NULL;	// variable descriptor
 		g_varlimit[b]=0x0;	// variable limit
 	}
 	g_nextMemory=g_firstMemory;
@@ -38,6 +37,9 @@ void clearMemory(void){
 	// for .. next counter 
 	countFor=0;	
 	countSub=0;
+
+	// idTable
+	clearId();
 }
 
 char* allocateMemory(int len){

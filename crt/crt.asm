@@ -12,7 +12,7 @@
 .globl __decI
 .globl __hexI
 .globl _mul
-.globl _div
+.globl _z80div
 .globl __divu
 .globl __stade
 .globl _hlsta
@@ -39,7 +39,7 @@
 .area _CODE
 
 CALL _initProc       ;$1500
-LD SP,#0x1420	     ;$1503
+LD SP,#(__kmstack)   ;$1503
 JP _main             ;$1506
 JP _printBreak       ;$1509
 JP _checkBreak       ;$150c
@@ -176,7 +176,7 @@ _com:
  inc hl
  ret
  
-_div::
+_z80div::
  ld b,#0
  ld a,d
  or a
@@ -305,6 +305,12 @@ _stade2:
  or e
  jr nz,_stade2
  ret
+
+;
+; stack area
+;
+	.ds 168
+__kmstack::
 
 
 	.area   _GSINIT

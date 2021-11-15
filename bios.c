@@ -191,6 +191,9 @@ char preCheckStack(void) __naked {
 }
 char checkStack(void) __naked {
 	__asm
+		ld a,#(ERR_STKOVR)
+		cp l
+		ret z
 		ld e,l
 		ld hl,#(_countFor)
 		ld a,(hl)

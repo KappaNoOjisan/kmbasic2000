@@ -7,6 +7,9 @@
 #define MAIN
 #include "main.h"
 
+char *tempObject;
+char *compiled;
+
 void init(void){
 	// Starting message
 	newLine();
@@ -83,9 +86,7 @@ char inputLine(void) __naked {
 
 }
 void main(void){
-	register char* tempObject;
-	register char *compiled;
-	char e;
+	register char e;
 	while(1){
 		while(1){
 			source=(char*)LINE_BUFFER;
@@ -101,7 +102,8 @@ void main(void){
 			} else {
 				// Direct execution of a statement
 				g_objPointer=0;
-				object=tempObject=(char*)g_nextMemory;
+				tempObject=(char*)g_nextMemory;
+				object=(char*)g_nextMemory;
 				e=compile();
 				if (e) break;
 				copyInt(0x002e);// LD L,0
@@ -109,7 +111,7 @@ void main(void){
 				compiled=object;
 				g_nextMemory=(int)object;
 				e=callCode((int)tempObject);
-				if (e || g_nextMemory==(int)compiled) {
+				if (e || compiled==(char*)g_nextMemory) {
 					g_nextMemory=(int)tempObject;
 					if (e) {
 						countSub=countFor=0;

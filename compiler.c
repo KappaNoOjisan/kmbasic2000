@@ -11,6 +11,13 @@ SUB_TABLE subT[MAX_SUB_COUNT];
 #ifdef LOCAL_TEST
 #include "dmyfunc.c"
 #else
+char command(char* str){
+	register int len;
+	for(len=0;str[len];len++);
+	if (strncmp(source,str,len)) return 0;
+	source+=len;
+	return 1;
+}
 #pragma save
 #pragma disable_warning 85
 void ldForAdr(void) __naked {
@@ -54,26 +61,34 @@ char restoreFor(void) __naked {
 		ld a,#(ERR_MISFOR)
 		call _preCheckStack
 		ret m
+		;
 		call _ldForAdr
-		ld e,(hl) ; de=vofs
+		ld a,(hl)
+		add a,a
+		ld e,a
 		inc hl
-		ld d,#0
+		ld d,#0 ; de=varOfs
+		;
 		ld iy,#(_g_variables)
 		add iy,de ; iy= varAdr
+		;
 		ld e,(hl)
 		inc hl
 		ld d,(hl) ; de=step
+		;
 		inc hl
 		ld a,d
 		ld c,(hl)
 		inc hl
 		ld b,(hl) ; bc=limit
+		;
 		push hl
 		ld l,0(iy)
 		ld h,1(iy)
 		add hl,de
 		ld 0(iy),l
 		ld 1(iy),h ; (varAdr)+=step
+		;
 		ld e,c
 		ld d,b ; de=limit
 		rla
@@ -187,7 +202,7 @@ void copyCode(OBJECT_CODE code, int len){
 	__endasm;
 }
 
-void copyByte(char b){
+void copyByte(BYTE b){
 	//checkCodeMemory(1);
 	//*object++=b;
 	__asm
@@ -208,7 +223,7 @@ void copyByte(char b){
 	__endasm;
 }
 
-void copyInt(int i){
+void copyInt(INT i){
 	//checkCodeMemory(2);
 	//((int*)object)[0]=i;
 	__asm
@@ -247,32 +262,30 @@ char skipBlank(void) __naked {
 }
 #pragma restore
 #endif
-char command(char* str){
-	int len;
-	for(len=0;str[len];len++);
-	if (strncmp(source,str,len)) return 0;
-	source+=len;
-	return 1;
-}
 char compileStr(void){
 	//Prepare a code to set the pointer to DE register.
 	register char b;
-	int j;
+	signed char j;
+	ID id;
 	b=skipBlank();
 	if (b=='"') {
 		source++;
-		copyByte(0x11); // LD DE,XXXX
+		copyByte(0x11); // LD DE,source
 		copyInt((int)source);
 		while(*source!='"'&&*source!='\x0') source++;
 		if (*source=='"') source++;
 	} else if (source[1]=='$') {
 		source[0];// This line is required (don't know why).
-		source++;
-		source++;
+		source+=2;
 		if (b<'A' || 'Z'<b) return ERR_SYNTAX;
-		j=(int)(b-'A');
+		id.name[0]=b;
+		id.name[1]=' ';
+		id.type=VAR_STRT;
+		j=locId(&id);
+		if (j==ID_NOTF) j=enterId(&id);
+		if (j==ID_OVER) return ERR_MEMORY;
 		copyCode("\xED\x5B",2); // LD DE,(XXXX)
-		((int*)object)[1]=(int)(&g_variables)+2*j;
+		((int*)object)[1]=(int)(&g_variables)+2*(int)j;
 		object+=4;
 		if (skipBlank()=='(') {
 			// A$(xx) or A$(xx,yy) (substring function)
@@ -292,66 +305,279 @@ char compileStr(void){
 char compileIntSub(void){
 	register char b;
 	int i;
-	int j;
+	signed char j;
+	ID id;
 	// Value will be in DE.
-	b=skipBlank();
-	if (b=='(') {
+	switch (b=checkId()) {
+	case TOK_LPAR:	
 		source++;
 		b=compileInt();
 		if (b) return b;
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
-	} else if (b=='-') {
+		break;
+	case TOK_MINS:
 		source++;
-		b=skipBlank();
-		if (b=='$' || ('0'<=b && b<='9')) {
+		switch (b=checkId()) {
+		case TOK_NLIT:
 			// Hexadecimal or decimal
 			source=getInt(source,&i);
 			copyByte(0x11);
-			copyInt(-i);
-		} else {	
-			b=compileInt();
+			copyInt((INT)-i);
+			break;
+		default:
+			b=compileIntSub();
 			if (b) return b;
 			// XOR A; LD H,A; LD L,A; SBC HL,DE; EX DE,HL
 			copyCode("\xaf\x67\x6f\xed\x52\xeb",6);
 			object+=6;
+			break;
 		}
-	} else if (b=='$' || ('0'<=b && b<='9')) {
+		break;
+	case TOK_NLIT:
 		// Hexadecimal or decimal
 		source=getInt(source,&i);
 		copyByte(0x11); // LD DE,XXXX
 		copyInt(i);
-	} else if ('A'<=b && b<='Z') {
-		j=(int)(b-'A');
-		i=(int)(&g_variables)+2*j;
-		b=source[1];
-		if (b=='(') {
-			// Dimension
-			source+=2;
-			b=compileInt();
-			if (b) return b;
-			if (skipBlank()!=')') return ERR_SYNTAX;
-			source++;
-			// LD HL,(i); ADD HL,DE; ADD HL,DE; LD E,(HL); INC HL; LD D,(HL);
-			copyCode("\x2A\x00\x00\x19\x19\x5E\x23\x56",8);
-			object++;
-			((int*)object)[0]=i;
-			object+=7;
-		} else if (b<'A' || 'Z'<b) {
-			// Integer variables
-			copyCode("\xED\x5B",2); // LD DE,(XXXX)
-			((int*)object)[1]=i;
-			object+=4;
-			source++;
-		} else {
-			// Functions
-			b=compileIntFunc();
-			if (b) return b;
-		}
-	} else return ERR_SYNTAX; 
+		break;
+	case (VAR_INTT|VAR_ARYT):
+		getId(&id);
+		id.type=b;
+		j=locId(&id);
+		if (j==ID_NOTF) return ERR_SUBSCR;
+		if (j==ID_OVER) return ERR_MEMORY;
+		i=(int)(&g_variables)+2*(int)j;
+		b=compileInt();
+		if (b) return b;
+		if (skipBlank()!=')') return ERR_SYNTAX;
+		source++;
+		// LD HL,(i); ADD HL,DE; ADD HL,DE; LD E,(HL); INC HL; LD D,(HL);
+		copyCode("\x2A\x00\x00\x19\x19\x5E\x23\x56",8);
+		object++;
+		((int*)object)[0]=i;
+		object+=7;
+		break;
+	case VAR_INTT:
+		getId(&id);
+		id.type=b;
+		j=locId(&id);
+		if (j==ID_NOTF) j=enterId(&id);
+		if (j==ID_OVER) return ERR_MEMORY;
+		i=(int)(&g_variables)+2*(int)j;
+		// Integer variables
+		copyCode("\xED\x5B",2); // LD DE,(XXXX)
+		((int*)object)[1]=i;
+		object+=4;
+		break;
+	case TOK_INTF:
+		b=compileIntFunc();
+		if (b) return b;
+		break;
+	default:
+		return ERR_SYNTAX; 
+	}
 	return ERR_NOTHIN; 
 }
-
+char compileIntTerm(void) {
+	register char b;
+	register char op;
+	b=compileIntSub();
+	if (b) return b;
+	do {	
+		// Get operator
+		op=skipBlank();
+		switch(op){
+			case '*':case '/':case '%':
+				source++;
+				break;
+			case 'A':
+				if (source[1]!='N' || source[2]!='D') return 0;
+				source+=3;
+				break;
+			default: // Operator not found. Let's return the value (supporsed to be in DE)
+				return ERR_NOTHIN;
+		}
+		// Preserve current DE in stack
+		copyByte(0xD5); // PUSH DE
+		// Get right value to DE
+		b=compileIntSub();
+		if (b) return b;
+		// Caluculate
+		switch(op){
+			case '*':
+				// POP HL; CALL mul
+				copyCode("\xE1\xCD",2);
+				object+=2;
+				copyInt((int)mul);
+				break;
+			case '/':
+				// POP HL; CALL div
+				copyCode("\xE1\xCD",2);
+				object+=2;
+				copyInt((int)z80div);
+				break;
+			case '%':
+				// POP HL; CALL div; EX DE,HL
+				copyCode("\xE1\xCD",2);
+				object+=2;
+				copyInt((int)z80div);
+				copyByte(0xeb);
+				break;
+			case 'A':
+				// POP HL; LD A,H; AND D; LD H,A; LD A,L; AND E; LD L,A
+				copyCode("\xE1\x7C\xA2\x67\x7D\xA3\x6F",7);
+				object+=7;
+				break;
+			default:
+				return ERR_RESERV;
+		}
+		copyByte(0xEB); // EX HL,DE
+		// Seek the next operator
+	} while(1);
+}
+char compileIntSxp(void) {
+	register char b;
+	register char op;
+	// Get left value to DE
+	b=compileIntTerm();
+	if (b) return b;
+	do {
+		// Get operator
+		op=skipBlank();
+		switch(op){
+			case '+': case '-': 
+				source++;
+				break;
+			case 'O':
+				if (source[1]!='R') return 0;
+				source+=2;
+				break;
+			case 'X':
+				if (source[1]!='O' || source[2]!='R') return 0;
+				source+=3;
+				break;
+			default: // Operator not found. Let's return the value (supporsed to be in DE)
+				return ERR_NOTHIN;
+		}
+		// Preserve current DE in stack
+		copyByte(0xD5); // PUSH DE
+		// Get right value to DE
+		b=compileIntTerm();
+		if (b) return b;
+		// Caluculate
+		switch(op){
+			case '+':
+				// POP HL; ADD HL,DE
+				copyCode("\xE1\x19",2);
+				object+=2;
+				break;
+			case '-':
+				// POP HL; XOR A; SBC HL,DE
+				copyCode("\xE1\xAF\xED\x52",4);
+				object+=4;
+				break;
+			case 'O':
+				// POP HL; LD A,H; OR D; LD H,A; LD A,L; OR E; LD L,A
+				copyCode("\xE1\x7C\xB2\x67\x7D\xB3\x6F",7); 
+				object+=7;
+				break;
+			case 'X':
+				// POP HL; LD A,H; XOR D; LD H,A; LD A,L; XOR E; LD L,A
+				copyCode("\xE1\x7C\xAA\x67\x7D\xAB\x6F",7);
+				object+=7;
+				break;
+			default:
+				return ERR_RESERV;
+		}
+		copyByte(0xEB); // EX HL,DE
+		// Seek the next operator
+	} while(1);
+}
+char compileInt(void){
+	register char b;
+	register char op;
+	b=compileIntSxp();
+	if (b) return b;
+	do {
+		op=skipBlank();
+		switch(op){
+			case '=':
+				source++;
+				break;
+			case '!':
+				if (source[1]!='=') return ERR_NOTHIN;
+				source+=2;
+				break;
+			case '<':
+				source++;
+				if (source[0]=='=') {
+					source++;
+					op='(';
+				}
+				break;
+			case '>':
+				source++;
+				if (source[0]=='=') {
+					source++;
+					op=')';
+				}
+				break;
+			default: // Operator not found. Let's return the value (supporsed to be in DE)
+				return ERR_NOTHIN;
+		}
+		// Preserve current DE in stack
+		copyByte(0xD5); // PUSH DE
+		// Get right value to DE
+		b=compileIntSxp();
+		if (b) return b;
+		// Caluculate
+		switch(op){
+			case '=':
+				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JR NZ,skip:; inc HL; skip:
+				copyCode("\xE1\xAF\xED\x52\x67\x6F\x20\x01\x23",9);
+				object+=9;
+				break;
+			case '!':
+				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JRNZ,skip:; inc HL; skip:
+				copyCode("\xE1\xAF\xED\x52\x67\x6F\x28\x01\x23",9);
+				object+=9;
+				break;
+			case '<':
+				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JP P,skip:; INC HL; skip:
+				copyCode("\xE1\xAF\xED\x52\x67\x6F\xF2\x0A\x00\x23",10);
+				object+=7;
+				((int*)object)[0]=(int)object+3;
+				object+=3;
+				break;
+			case '>':
+				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JP M,skip:; JR Z,skip:; INC HL; skip:
+				copyCode("\xE1\xAF\xED\x52\x67\x6F\xFA\x0C\x00\x28\x01\x23",12);
+				object+=7;
+				((int*)object)[0]=(int)object+5;
+				object+=5;
+				break;
+			case '(':
+				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JR Z,skip1: JP P,skip:2; skip1: INC HL; skip:2
+				copyCode("\xE1\xAF\xED\x52\x67\x6F\x28\x03\xF2\x0A\x00\x23",12);
+				object+=9;
+				((int*)object)[0]=(int)object+3;
+				object+=3;
+				break;
+			case ')':
+				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JP M,skip:; INC HL; skip:
+				copyCode("\xE1\xAF\xED\x52\x67\x6F\xFA\x0A\x00\x23",10);
+				object+=7;
+				((int*)object)[0]=(int)object+3;
+				object+=3;
+				break;
+			default:
+				return ERR_RESERV;
+		}
+		copyByte(0xEB); // EX HL,DE
+		// Seek the next operator
+	} while(1);
+}
+/*
 char compileInt(void){
 	register char b;
 	register char op;
@@ -494,6 +720,7 @@ char compileInt(void){
 		// Seek the next operator
 	} while(1);
 }
+*/
 char compilePrint(void){
 	register char b;
 	char cr=1;
@@ -502,19 +729,6 @@ char compilePrint(void){
 			case ':':
 			case 0x00:
 				break;
-			case '"':
-				cr=1;
-				source++;
-				copyCode("\x11\x00\x00\xCD\x09\x15",6); // LD DE,nn; CALL 0x1509
-				object++;
-				((int*)object)[0]=(int)source;
-				object+=5;
-				while (source[0]!='"') {
-					if (source[0]==0x00) return ERR_NOTHIN;
-					source++;
-				}
-				source++;
-				continue;
 			case ';':
 				cr=0;
 				source++;
@@ -530,27 +744,31 @@ char compilePrint(void){
 				if (!strncmp(source,"ELSE ",5)) break;
 			default:
 				cr=1;
-				if ('A'<=source[0] && source[0]<='Z') {
-					for (b=1;source[b]!='$';b++) {
-						if ('A'<=source[b] && source[b]<='Z') continue;
-						b=0;
-						break;
-					}
-				} else b=0;
-				if (b) {
+				b=checkId();
+				if (b==VAR_STRT||b==TOK_STRF) {
 					// String
 					b=compileStr();
 					if (b) return b;
-					copyCode("\xCD\x09\x15",3); // CALL 0x1509
+					copyCode("\xCD\x09\x15",3);	// CALL 0x1509
 					object+=3;
-				} else {
+				} else if (b==TOK_SLIT) {
+					source++;
+					copyByte(0x11);			// LD DE,source
+					copyInt((int)source);
+					copyCode("\xCD\x09\x15",3);	// CALL 0x1509
+					object+=3;
+					source++;
+					while(*source!='"' && *source!=0) source++;
+					if (*source==0) break;
+					source++;
+				} else if (isExp(b)) {
 					// Integer
 					b=compileInt();
 					if (b) return b;
 					copyCode("\xD5\xCD\x00\x00\xD1",5); // PUSH DE; CALL printDec; POP DE
 					((int*)object)[1]=(int)printDec;
 					object+=5;
-				}
+				} else return ERR_SYNTAX;
 				continue;
 		}
 		if (cr) {
@@ -582,39 +800,38 @@ char compileNew(){
 
 char compileLet(void){
 	register char b,e;
-	int variableAddress;
-	int j;
+	register int dest;
+	signed char j;
+	ID id;
 	// Seek the name of variable (either A, B, ... or Z)
-	e=skipBlank();
-	if (e<'A' || 'Z'<e) return ERR_SYNTAX;
-	source++;
-	// Determine the address of variable
-	j=(int)(e-'A');
-	variableAddress=(int)(&g_variables[j*2]);
-	// Determine if string
-	b=source[0];
-	if (b=='$') {
-		source++;
-	} else if (b=='(') {
-		source++;
+	b=checkId();
+	if (!isVar(b)) return ERR_SYNTAX;
+	getId(&id);
+	id.type=b;
+	j=locId(&id);
+	if (b==(VAR_INTT|VAR_ARYT)) {
+		if (j==ID_NOTF) return ERR_SUBSCR;
 		// Dimension
 		e=compileInt();
 		if (e) return e;
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
 		copyByte(0xD5); // PUSH DE
-	} else {
-		b=0;
 	}
 	// Check "="
 	if (skipBlank()!='=') return ERR_SYNTAX;
 	source++;
-	if (b=='$') {
+	// get address
+	if (j==ID_NOTF) j=enterId(&id);
+	if (j==ID_OVER) return ERR_MEMORY;
+	dest=(int)&g_variables[j*2];
+	switch (b) {
+	case VAR_STRT:
 		// String
-		// LD HL,variableAddress; PUSH HL; CALL initStr; PUSH HL
+		// LD HL,des; PUSH HL; CALL initStr; PUSH HL
 		copyCode("\x21\x34\x12\xE5\xCD\x34\x12\xE5",8);
 		object++;
-		((int*)object)[0]=variableAddress;
+		((int*)object)[0]=dest;
 		((int*)object)[2]=(int)initStr;
 		object+=7;
 		while(1) {
@@ -631,25 +848,22 @@ char compileLet(void){
 		copyCode("\xE1\xCD\x34\x12\xE1",5);
 		((int*)object)[1]=(int)afterStr;
 		object+=5;
-		//type set
-	} else if (b=='(') {
+		break;
+	case VAR_INTT: case (VAR_INTT|VAR_ARYT):
 		// Dimension
 		e=compileInt();
 		if (e) return e;
-		// POP BC; LD HL,(variableAddress); ADD HL,BC; ADD HL,BC; LD (HL),E; INC HL; LD (HL),D;
-		copyCode("\xC1\x2A\x00\x00\x09\x09\x73\x23\x72",9);
-		((int*)object)[1]=variableAddress;
-		object+=9;
-	} else {
-		// Integer
-		// Get value in DE register
-		e=compileInt();
-		if (e) return e;
-		// Put value to memory
-		copyCode("\xED\x53",2); // LD (XXXX),DE
-		((int*)object)[1]=variableAddress;
-		object+=4;
-		//type set
+		if (b==(VAR_INTT|VAR_ARYT)) {
+			// POP BC; LD HL,(dest); ADD HL,BC; ADD HL,BC; LD (HL),E; INC HL; LD (HL),D;
+			copyCode("\xC1\x2A\x00\x00\x09\x09\x73\x23\x72",9);
+			((int*)object)[1]=dest;
+			object+=9;
+		} else {
+			copyCode("\xED\x53",2); // LD (dest),DE
+			((int*)object)[1]=dest;
+			object+=4;
+		}
+		break;
 	}
 	return ERR_NOTHIN;
 }
@@ -684,9 +898,10 @@ void setLineNum(void){
 */
 char compileFor(void){
 	register char e;
-	register char *patch;
-	char vofs;
+	register signed char vofs;
+	char *idptr;
 	int variableAddress;
+	ID id;
 
 	copyByte(0x3e);			// LD A,ERR_MISFOR
 	copyByte(ERR_MISFOR);
@@ -694,9 +909,16 @@ char compileFor(void){
 	copyInt((int)countStack);	// CALL countStack
 	copyByte(0xC8);			// RET Z
 	// init statement
-	e=skipBlank();
-	vofs = (e-'A')*2;
+	e=checkId();
+	idptr=source;
+	if (e!=VAR_INTT) return ERR_SYNTAX;
+	getId(&id);
+	id.type=e;
+	vofs=locId(&id);
+	if (vofs==ID_NOTF) vofs=enterId(&id);
+	if (vofs==ID_OVER) return ERR_MEMORY;
 	variableAddress=(int)(&g_variables[vofs]);
+	source=idptr;
 	e=compileLet();
 	copyByte(0x06); // LD B,#vofs
 	copyByte(vofs);
@@ -917,23 +1139,28 @@ char compileCursor(void){
 char compileDim(void){
 	char b;
 	int j;
-	int variableAddress;
+	INT variableAddress;
+	ID id;
 	while(1){
-		b=skipBlank();
-		if (b<'A'||'Z'<b) return ERR_SYNTAX;
-		if (source[1]!='(') return ERR_SYNTAX;
-		source+=2;
-		j=(b-'A');
-		//setAry(j);
-		variableAddress=(int)(&g_variables[j*2]);
+		b=checkId();
+		if (b!=(VAR_INTT|VAR_ARYT)) return ERR_SYNTAX;
+		getId(&id);
+		id.type=b;
+		j=locId(&id);
+		if (j==ID_NOTF) j=enterId(&id);
+		if (j==ID_OVER) return ERR_MEMORY;
+		if (j==ID_DUPL) return ERR_DUPLID;
+		variableAddress=(INT)(&g_variables[j*2]);
 		b=compileInt();
 		if (b) return b;
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
+
 		// LD HL,variablelimit; LD (HL),E; INC HL; LD (HL),D
 		copyCode("\x21\x00\x00\x73\x23\x72",6);
 		((unsigned int*)object)[1]=(unsigned int)&g_varlimit[j];
 		object+=6;
+
 		// INC DE; LD H,D; LD L,E; ADD HL,DE; PUSH HL; CALL allocateMemory; POP DE;
 		// LD D,H; LD E,L; LD HL,variableAddress; LD (HL),E; INC HL; LD (HL),D; 
 		copyCode("\x13\x62\x6B\x19\xE5\xCD\x00\x00\xD1\x54\x5D\x21\x00\x00\x73\x23\x72",17);
