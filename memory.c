@@ -38,14 +38,21 @@ void clearMemory(void){
 	countFor=0;	
 	countSub=0;
 
-	// idTable
-	clearId();
 }
 
-char* allocateMemory(int len){
-	char* ret=(char*)g_nextMemory;
-	g_nextMemory+=len;
-	if (g_sourceMemory<=g_nextMemory) memoryError();
+char* allocateMemory(INT len){
+	register char* from;
+	register char* to;
+	char *ret;
+	if (g_sourceMemory<=(g_nextMemory+len)) memoryError();
+	//initialize;
+	from=(char*)g_nextMemory;
+	ret=from;
+	to=from+len;
+	do {
+		*from++=0;
+	} while (from!=to);
+	g_nextMemory=(INT)to;
 	return ret;
 }
 

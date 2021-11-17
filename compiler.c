@@ -302,6 +302,53 @@ char compileStr(void){
 	}
 	return 0;
 }
+
+void lea(void) __naked {
+
+	__asm
+	; a:ofs
+	; de:dim
+
+	add a,a
+	ld b,#0
+	ld c,a
+
+	ld iy,#_g_varlimit
+	add iy,bc
+
+	ld l,0(iy)
+	ld h,1(iy)
+	or a
+	sbc hl,de
+	ld l,#(ERR_SUBSCR)
+	ret m
+
+	ld hl,#_g_variables
+	add hl,bc
+
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+
+	add hl,de
+	add hl,de
+
+	xor a
+	ret
+	__endasm;
+}
+void ldea(void) __naked {
+	__asm
+	call _lea
+	ret m
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+	xor a
+	ret
+	__endasm;
+}
 char compileIntSub(void){
 	register char b;
 	int i;
@@ -345,24 +392,21 @@ char compileIntSub(void){
 		id.type=b;
 		j=locId(&id);
 		if (j==ID_NOTF) return ERR_SUBSCR;
-		if (j==ID_OVER) return ERR_MEMORY;
-		i=(int)(&g_variables)+2*(int)j;
 		b=compileInt();
 		if (b) return b;
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
-		// LD HL,(i); ADD HL,DE; ADD HL,DE; LD E,(HL); INC HL; LD D,(HL);
-		copyCode("\x2A\x00\x00\x19\x19\x5E\x23\x56",8);
-		object++;
-		((int*)object)[0]=i;
-		object+=7;
+		// LD A,#j; CALL ldea; RET M
+		copyInt((j*0x100)+0x3e);
+		copyByte(0xCd);
+		copyInt((INT)ldea);
+		copyByte(0xf8);
 		break;
 	case VAR_INTT:
 		getId(&id);
 		id.type=b;
 		j=locId(&id);
 		if (j==ID_NOTF) j=enterId(&id);
-		if (j==ID_OVER) return ERR_MEMORY;
 		i=(int)(&g_variables)+2*(int)j;
 		// Integer variables
 		copyCode("\xED\x5B",2); // LD DE,(XXXX)
@@ -816,9 +860,13 @@ char compileLet(void){
 		if (e) return e;
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
-		copyByte(0xD5); // PUSH DE
+
+		copyInt((j*0x100)+0x3e);	// LD A,#j
+		copyByte(0xCd); 		// CALL _lea
+		copyInt((INT)lea);
+		copyByte(0xf8);			// RET M
+		copyByte(0xe5); 		// PUSH HL
 	}
-	// Check "="
 	if (skipBlank()!='=') return ERR_SYNTAX;
 	source++;
 	// get address
@@ -854,10 +902,9 @@ char compileLet(void){
 		e=compileInt();
 		if (e) return e;
 		if (b==(VAR_INTT|VAR_ARYT)) {
-			// POP BC; LD HL,(dest); ADD HL,BC; ADD HL,BC; LD (HL),E; INC HL; LD (HL),D;
-			copyCode("\xC1\x2A\x00\x00\x09\x09\x73\x23\x72",9);
-			((int*)object)[1]=dest;
-			object+=9;
+			// POP HL; LD (HL),E; INC HL; LD (HL),D
+			copyCode("\xe1\x73\x23\x72",4);
+			object+=4;
 		} else {
 			copyCode("\xED\x53",2); // LD (dest),DE
 			((int*)object)[1]=dest;
@@ -1072,7 +1119,9 @@ char compileRet(void){
 char compileRun(void){
 	register char b;
 	copyByte(0xCD); // CALL clearMemory
-	copyInt((int)clearMemory);
+	copyInt((INT)clearMemory);
+	copyByte(0xCD);
+	copyInt((INT)clearId); // CALL clearId
 	// Inhibit compileGoto() when only "RUN" entered
 	b=skipBlank();
 	if (b<'0' || '9'<b) {
@@ -1136,10 +1185,57 @@ char compileCursor(void){
 	object+=8;
 	return ERR_NOTHIN;
 }
+void allocateDim(void) __naked {
+	// a : idofs
+	// de: maxdim
+	__asm
+		ld b,a
+		ld a,d
+		or a
+		ld a,b
+		jp p,00002$
+	;
+		push af
+		inc sp
+		call _removeId
+		inc sp
+		ld l,#(ERR_SUBSCR)
+		ret
+	00002$:
+		ex de,hl
+		push hl ; hl=max
+
+		inc hl
+		add hl,hl ; hl=memsize
+
+		add a,a
+		ld e,a
+		ld d,#0
+		push de ; de=offset
+
+		push hl
+		call _allocateMemory
+		pop de
+		
+		ld iy,#(_g_variables)
+		pop de ; offset
+		add iy,de
+		ld 0(iy),l
+		ld 1(iy),h
+
+		ld hl,#(_g_varlimit)
+		add hl,de
+		pop de ; max
+		ld (hl),e
+		inc hl
+		ld (hl),d
+		xor a
+		ret	
+	__endasm;
+}
 char compileDim(void){
 	char b;
 	int j;
-	INT variableAddress;
 	ID id;
 	while(1){
 		b=checkId();
@@ -1147,26 +1243,21 @@ char compileDim(void){
 		getId(&id);
 		id.type=b;
 		j=locId(&id);
-		if (j==ID_NOTF) j=enterId(&id);
-		if (j==ID_OVER) return ERR_MEMORY;
-		if (j==ID_DUPL) return ERR_DUPLID;
-		variableAddress=(INT)(&g_variables[j*2]);
+		if (j!=ID_NOTF) return ERR_DUPLID;
+		// subscript
 		b=compileInt();
 		if (b) return b;
 		if (skipBlank()!=')') return ERR_SYNTAX;
 		source++;
+		// enter
+		j=enterId(&id);
+		if ( j==ID_OVER ) return ERR_MEMORY;
 
-		// LD HL,variablelimit; LD (HL),E; INC HL; LD (HL),D
-		copyCode("\x21\x00\x00\x73\x23\x72",6);
-		((unsigned int*)object)[1]=(unsigned int)&g_varlimit[j];
-		object+=6;
-
-		// INC DE; LD H,D; LD L,E; ADD HL,DE; PUSH HL; CALL allocateMemory; POP DE;
-		// LD D,H; LD E,L; LD HL,variableAddress; LD (HL),E; INC HL; LD (HL),D; 
-		copyCode("\x13\x62\x6B\x19\xE5\xCD\x00\x00\xD1\x54\x5D\x21\x00\x00\x73\x23\x72",17);
-		((unsigned int*)object)[3]=(unsigned int)allocateMemory;
-		((unsigned int*)object)[6]=(unsigned int)variableAddress;
-		object+=17;
+		// LD A,#j; CALL allocateDim; RET M; 
+		copyInt((j*0x100)+0x3e);
+		copyByte(0xCD);
+		copyInt((INT)allocateDim);
+		copyByte(0xF8);
 		if (skipBlank()!=',') return ERR_NOTHIN;
 		source++;
 	}

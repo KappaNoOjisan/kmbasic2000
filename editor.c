@@ -11,6 +11,8 @@ void newCode(){
 	g_sourceMemory=g_lastMemory;
 	// Clear all variables
 	clearMemory();
+	// idTable
+	clearId();
 }
 
 unsigned int getDecimal(void) __naked {
@@ -60,9 +62,11 @@ char addCode(void){
 	skipBlank();
 	// Check syntax
 	sourceStart=(unsigned int)source;
-	object=(char*)g_nextMemory;
-	e=compile();
-	if (e) return e;
+	while (*source) source++;
+	//object=(char*)g_nextMemory;
+	//e=compile();
+	//if (e) return e;
+
 	// Determine source length and go back to original source position.
 	sourceLen=(unsigned int)source-sourceStart+1;
 	source=(char*)sourceStart;

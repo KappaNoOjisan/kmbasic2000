@@ -149,7 +149,7 @@ extern void z80div(void);
 // memory.c
 void memoryError(void);
 void clearMemory(void);
-char* allocateMemory(int len);
+char* allocateMemory(INT len);
 void freeMemory(char* back);
 
 // bios.c
@@ -172,6 +172,7 @@ char callCode(int address) __naked;
 
 // idtable.c
 void clearId(void);
+signed char removeId(signed char ofs);
 signed char enterId(ID *id);
 signed char locId(ID *id);
 TYPE checkId(void);

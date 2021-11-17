@@ -1,4 +1,3 @@
-
 STATEMENT_LIST forDebug[] = {
 	{
 		.ptr = compileDim,
@@ -176,7 +175,7 @@ void clearMemory(void) {
 char goTo(void) {
 }
 
-char *allocateMemory(int len) {
+char *allocateMemory(INT len) {
 }
 
 void saveToTape(void) {
