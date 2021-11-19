@@ -38,10 +38,10 @@ typedef struct {
 } ID;
 
 typedef struct {
-	unsigned char vofs;
-	unsigned int step;
-	unsigned int limit;
-	unsigned int jmp;
+	INT varptr;
+	INT step;
+	INT limit;
+	INT jmp;
 } FOR_TABLE;
 
 typedef unsigned int SUB_TABLE;

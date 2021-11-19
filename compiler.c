@@ -182,11 +182,11 @@ void ldForAdr(void) __naked {
 	__asm
 		ld a,(_countFor)
 		dec a
-		ld l,a
-		ld h,#0
-		ld de,#7
-		call _mul
-		ex de,hl
+		add a,a ;*2
+		add a,a ;*4
+		add a,a ;*8
+		ld e,a
+		ld d,#0 
 		ld hl,#(_forT)
 		add hl,de
 		ret
@@ -198,10 +198,7 @@ void registerFor(void) __naked {
 		push hl	; step
 		push bc ; vofs
 		call _ldForAdr
-		pop bc
-		ld (hl),b ; vofs
-		inc hl
-		ld b,#3
+		ld b,#4
 	00002$:
 		pop de ; step..limit..jmp
 		ld (hl),e
@@ -221,20 +218,19 @@ char restoreFor(void) __naked {
 		ret m
 		;
 		call _ldForAdr
-		ld a,(hl)
-		add a,a
-		ld e,a
+		ld e,(hl)
 		inc hl
-		ld d,#0 ; de=varOfs
+		ld d,(hl) 
+		inc hl
 		;
-		ld iy,#(_g_variables)
-		add iy,de ; iy= varAdr
+		ld iy,#0
+		add iy,de ; iy=varAdr
 		;
 		ld e,(hl)
 		inc hl
 		ld d,(hl) ; de=step
-		;
 		inc hl
+		;
 		ld a,d
 		ld c,(hl)
 		inc hl
@@ -592,12 +588,14 @@ void lea(void) __naked {
 void ldea(void) __naked {
 	__asm
 	push bc
+	push hl
 	call _lea
-	ret m
+	jp m,00002$
 	ld e,(hl)
 	inc hl
 	ld d,(hl)
-	xor a
+00002$:
+	pop hl
 	pop bc
 	ret
 	__endasm;
@@ -1040,7 +1038,7 @@ void setLineNum(void){
 	; for var=init
 	(LD DE,init)
 	LD (var),DE
-	LD B,#vofs
+	LD BC,&var
 
 	; TO limit
 	(LD DE,limit)
@@ -1055,8 +1053,8 @@ void setLineNum(void){
 char compileFor(void){
 	register char e;
 	register signed char vofs;
+	register INT vadr;
 	char *idptr;
-	int variableAddress;
 	ID id;
 
 	copyByte(0x3e);			// LD A,ERR_MISFOR
@@ -1067,17 +1065,27 @@ char compileFor(void){
 	// init statement
 	e=checkId();
 	idptr=source;
-	if (e!=VAR_INTT) return ERR_SYNTAX;
 	getId(&id);
 	id.type=e;
 	vofs=locId(&id);
-	if (vofs==ID_NOTF) vofs=enterId(&id);
-	if (vofs==ID_OVER) return ERR_MEMORY;
-	variableAddress=(int)(&g_variables[vofs]);
+	switch (e) {
+	case VAR_INTT:
+		if (vofs==ID_NOTF) vofs=enterId(&id);
+		if (vofs==ID_OVER) return ERR_MEMORY;
+		vadr=(INT)&g_variables[vofs*2];
+		break;	
+	case VAR_INTT|VAR_ARYT:
+		if (vofs==ID_NOTF) return ERR_SUBSCR;
+		vadr=(INT)&g_variables[vofs*2];
+		vadr=*(INT*)vadr;	
+		break;
+	default:
+		return ERR_SYNTAX;
+	}
 	source=idptr;
 	e=compileLet();
-	copyByte(0x06); // LD B,#vofs
-	copyByte(vofs);
+	copyByte(0x01); // LD BC,#vadr
+	copyInt(vadr);
 	if (e) return e;
 	// TO statement
 	if (strncmp(source,"TO ",3)) return ERR_SYNTAX;
