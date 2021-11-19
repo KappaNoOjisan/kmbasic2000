@@ -12,19 +12,18 @@ typedef uint8_t BYTE;
 typedef uint16_t INT;
 typedef char (*FUNCPTR)(void);
 
-#ifdef LOCAL_TEST
-
-#define __naked
 typedef struct {
 	FUNCPTR ptr;
 	char *kw;
 } STATEMENT_LIST;
 
+#ifdef LOCAL_TEST
+
 typedef unsigned char *OBJECT_CODE;
+#define __naked
 
 #else
 
-typedef char STATEMENT_LIST;
 typedef char *OBJECT_CODE;
 
 #endif
@@ -49,7 +48,7 @@ typedef unsigned int SUB_TABLE;
 
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
-#define FIRST_MEMORY 0x4800
+#define FIRST_MEMORY 0x4A00
 #define LAST_MEMORY 0xdffe
 #define MAX_SUB_COUNT 6 
 #define MAX_FOR_COUNT 8
@@ -186,7 +185,7 @@ void copyByte(BYTE b);
 void copyInt(INT i);
 char command(char* str);
 char skipBlank(void);
-FUNCPTR seekList(STATEMENT_LIST* slist) __naked;
+FUNCPTR seekList(STATEMENT_LIST slist[],unsigned char n) __naked;
 char compile(void);
 char compileStr(void);
 char compileInt(void);

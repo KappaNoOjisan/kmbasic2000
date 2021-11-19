@@ -3,36 +3,70 @@
 *       Katsumi         *
 * License: LGPL ver 2.1 *
 *************************/
-#ifndef LOCAL_TEST
 #include "main.h"
-#else
 char funcAbs(void);
 char funcAsc(void);
+char funcInkey(void);
+char funcLen(void);
+char funcNot(void);
+char funcPeek(void);
+char funcRnd(void);
+char funcSgn(void);
+char funcStrncmp(void);
+char funcVal(void);
+
 char funcChr(void);
-STATEMENT_LIST flist[]={
-	{
-		.ptr=funcAbs,
+char funcDec(void);
+char funcHex(void);
+char funcInput(void);
+
+static STATEMENT_LIST flist[] = {
+	{	.ptr=funcAbs,
 		.kw="ABS"
 	},{
 		.ptr=funcAsc,
 		.kw="ASC"
 	},{
-		.ptr=NULL,
-		.kw=""
+		.ptr=funcInkey,
+		.kw="INKEY"
+	},{
+		.ptr=funcLen,
+		.kw="LEN"
+	},{
+		.ptr=funcNot,
+		.kw="NOT"
+	},{
+		.ptr=funcPeek,
+		.kw="PEEK"
+	},{
+		.ptr=funcRnd,
+		.kw="RND"
+	},{
+		.ptr=funcSgn,
+		.kw="SGN"
+	},{
+		.ptr=funcStrncmp,
+		.kw="STRNCMP"
+	},{
+		.ptr=funcVal,
+		.kw="VAL"
 	}
 };
 
-STATEMENT_LIST sflist[]={
-	{
-		.ptr=funcChr,
+static STATEMENT_LIST sflist[] = {
+	{	.ptr=funcChr,
 		.kw="CHR$"
 	},{
-		.ptr=NULL,
-		.kw=""
+		.ptr=funcDec,
+		.kw="DEC$"
+	},{
+		.ptr=funcHex,
+		.kw="HEX$"
+	},{
+		.ptr=funcHex,
+		.kw="INPUT$"
 	}
-
 };
-#endif
 
 // Library follows
 int valInt(char* str){
@@ -58,7 +92,8 @@ char* decStr(int num){
 	}
 	return str;
 }
-char* hexStr(unsigned int num){
+#ifdef LOCAL_TEST
+char* hexStr(INT num){
 	register char* str;
 	memcpy(g_strBuff,"0000\x0D",5);
 	str=&g_strBuff[4];
@@ -69,6 +104,56 @@ char* hexStr(unsigned int num){
 	} while(num);
 	return str;
 }
+#else
+#pragma save
+#pragma disable_warning 85
+char* hexStr(INT num) __naked {
+	__asm
+	ld hl,#2
+	add hl,sp
+	ld e,(hl)
+	inc hl
+	ld d,(hl)
+
+	ld hl,#(_g_strBuff)
+	ld c,#(' ')
+	ld b,#4
+00002$:
+	ld (hl),c
+	inc hl
+	djnz 00002$
+	ld (hl),#0x0d
+
+	ld b,#0x0a
+	ld c,#('0')
+00003$:
+	dec hl
+	ld a,e
+	and a,#0x0f
+	cp b
+	jr c,00004$
+	add a,#7
+00004$:
+	add a,c
+	ld (hl),a
+	ld a,e
+	srl d
+	rra
+	srl d
+	rra
+	srl d
+	rra
+	srl d
+	rra
+	ld e,a
+	or d
+	jr nz,00003$
+
+	ret		
+	__endasm;
+}
+#pragma restore
+#endif
 char* substr1(int pos, char* str){
 	if (pos<0) {
 		while (str[0]!=0x0D) str++;
@@ -270,82 +355,10 @@ char funcStrncmp(){
 	object+=18;
 	return 0;
 }
-#ifdef LOCAL_TEST
-STATEMENT_LIST* funcList(){
-	return flist;
-
-}
-STATEMENT_LIST* strFuncList(){
-	return sflist;
-}
-#else
-STATEMENT_LIST* funcList(void){
-	__asm
-		ld hl,#flist
-		ret
-		flist:
-		.dw #_funcPeek
-		.ascii "PEEK"
-		.db 0x00
-		.dw #_funcRnd
-		.ascii "RND"
-		.db 0x00
-		.dw #_funcVal
-		.ascii "VAL"
-		.db 0x00
-		.dw #_funcAbs
-		.ascii "ABS"
-		.db 0x00
-		.dw #_funcAsc
-		.ascii "ASC"
-		.db 0x00
-		.dw #_funcLen
-		.ascii "LEN"
-		.db 0x00
-		.dw #_funcSgn
-		.ascii "SGN"
-		.db 0x00
-		.dw #_funcNot
-		.ascii "NOT"
-		.db 0x00
-		.dw #_funcInkey
-		.ascii "INKEY"
-		.db 0x00
-		.dw #_funcStrncmp
-		.ascii "STRNCMP"
-		.db 0x00
-		.dw 0x0000
-	__endasm;
-	return 0;
-}
-
-STATEMENT_LIST* strFuncList(void){
-	__asm
-		ld hl,#sflist
-		ret
-		sflist:
-		.dw #_funcChr
-		.ascii "CHR$"
-		.db 0x00
-		.dw #_funcHex
-		.ascii "HEX$"
-		.db 0x00
-		.dw #_funcDec
-		.ascii "DEC$"
-		.db 0x00
-		.dw #_funcInput
-		.ascii "INPUT$"
-		.db 0x00
-		.dw 0x0000
-	__endasm;
-	return 0;
-}
-#endif
-
-char compileFuncSub(char* slist){
-	char e;
-	char (*sfunc)();
-	sfunc=seekList(slist);
+char compileFuncSub(STATEMENT_LIST slist[],unsigned char n){
+	register char e;
+	register FUNCPTR sfunc;
+	sfunc=seekList(slist,n);
 	if (!sfunc) return ERR_SYNTAX;
 	if (skipBlank()!='(') return ERR_SYNTAX;
 	source++;
@@ -356,8 +369,8 @@ char compileFuncSub(char* slist){
 	return 0;
 }
 char compileIntFunc(void){
-	return compileFuncSub(funcList());
+	return compileFuncSub(flist,sizeof(flist)/sizeof(flist[0])-1);
 }
 char compileStrFunc(void){
-	return compileFuncSub(strFuncList());
+	return compileFuncSub(sflist,sizeof(sflist)/sizeof(sflist[0])-1);
 }

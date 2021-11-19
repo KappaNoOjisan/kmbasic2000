@@ -1,22 +1,3 @@
-STATEMENT_LIST forDebug[] = {
-	{
-		.ptr = compileDim,
-		.kw  = "DIM"
-	},{ 
-		.ptr = compilePrint,
-		.kw  = "PRINT"
-	},{
-		.ptr = compileFor,
-		.kw  = "FOR "
-	},{
-		.ptr = compileNext,
-		.kw  = "NEXT"
-	},{
-		.ptr = NULL,
-		.kw  = ""
-	}
-};
-
 void mul(void) {
 }
 
@@ -72,22 +53,7 @@ char command(char* str){
 	source+=len;
 	return 1;
 }
-FUNCPTR seekList(STATEMENT_LIST *slist) {
-	while(1){
-		// Fetch pointer to function
-		if (slist->ptr==NULL) {
-			// End of statement list (not found)
-			return NULL;
-		}
-		// slist is now pointer to statement string to check
-		if (command(slist->kw)) {
-			// Statement/function found
-			return slist->ptr;
-		}
-		slist++;
-	}
-		
-}
+
 void registerFor(void) {
 }
 char restoreFor(void) {

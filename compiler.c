@@ -8,9 +8,107 @@
 FOR_TABLE forT[MAX_FOR_COUNT];
 SUB_TABLE subT[MAX_SUB_COUNT];
 
+char compileBye();
+char compileClear();
+char compileCursor();
+char compileDelete();
+char compileDim();
+char compileEnd();
+char compileExec();
+char compileFor();
+char compileGosub();
+char compileGoto();
+char compileLet();
+char compileList();
+char compileLoad();
+char compileNew();
+char compileNext();
+char compilePoke();
+char compilePrint();
+char compileRet();
+char compileRun();
+char compileSave();
+
+static STATEMENT_LIST slist[] = {
+	{	.ptr = compileBye,
+		.kw  = "BYE"
+	},{
+		.ptr = compileClear,
+		.kw  = "CLEAR"
+	},{
+		.ptr = compileCursor,
+		.kw  = "CURSOR"
+	},{
+		.ptr = compileDelete,
+		.kw  = "DELETE"
+	},{
+		.ptr = compileDim,
+		.kw  = "DIM "
+	},{
+		.ptr = compileEnd,
+		.kw  = "END"
+	},{
+		.ptr = compileExec,
+		.kw  = "EXEC"
+	},{
+		.ptr = compileFor,
+		.kw  = "FOR"
+	},{
+		.ptr = compileGosub,
+		.kw  = "GOSUB"
+	},{
+		.ptr = compileGoto,
+		.kw  = "GOTO"
+	},{
+		.ptr = compileLet,
+		.kw  = "LET"
+	},{
+		.ptr = compileList,
+		.kw  = "LIST"
+	},{
+		.ptr = compileLoad,
+		.kw  = "LOAD"
+	},{
+		.ptr = compileNew,
+		.kw  = "NEW"
+	},{
+		.ptr = compileNext,
+		.kw  = "NEXT"
+	},{
+		.ptr = compilePoke,
+		.kw  = "POKE"
+	},{
+		.ptr = compilePrint,
+		.kw  = "PRINT"
+	},{
+		.ptr = compileRet,
+		.kw  = "RETURN"
+	},{
+		.ptr = compileRun,
+		.kw  = "RUN"
+	},{
+		.ptr = compileSave,
+		.kw  = "SAVE"
+	}
+};
+
 #ifdef LOCAL_TEST
-#include "dmyfunc.c"
-#else
+FUNCPTR seekList(STATEMENT_LIST slist[],unsigned char n) {
+	register unsigned char i,j,k;
+	unsigned char l,m;
+	i=0;
+	j=n;
+	do {
+		k=(i+j)/2;
+		l=strlen(slist[k].kw);
+		m=strncmp(source,slist[k].kw,l);
+		if ( m<=0 ) j=k-1;
+		if ( m>=0 ) i=k+1;
+	} while (i<=j);
+	if (i-1>j) return slist[k].ptr;
+	return NULL;
+}
+
 char command(char* str){
 	register int len;
 	for(len=0;str[len];len++);
@@ -18,8 +116,68 @@ char command(char* str){
 	source+=len;
 	return 1;
 }
+#else
 #pragma save
 #pragma disable_warning 85
+
+void z80strncmp(void) __naked {
+       __asm   
+               push bc
+               push de
+               push hl
+loop:
+               ld a,(de)
+               sub (hl)
+               jr nz, exit
+               inc hl
+               inc de
+               djnz loop
+exit:
+               pop hl
+               pop de
+               pop bc
+               ret
+       __endasm;       
+ 
+}
+
+char command(char* str) __naked {
+	__asm
+	ld hl,#2
+	add hl,sp
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a
+
+	ld d,h
+	ld e,l
+	ld b,#0
+00002$:
+	ld a,(de)
+	or a,a
+	jr z,00003$
+	inc de
+	inc b
+	jr 00002$
+00003$:
+	ld c,b
+	ex de,hl
+	ld hl,(_source)
+	call _z80strncmp
+	ld b,#0
+	jr nz,00004$
+
+	add hl,bc
+	ld (_source),hl
+	ld l,#1
+	ret
+00004$:
+	ld l,b
+	ret
+	__endasm;
+}
+
 void ldForAdr(void) __naked {
 	__asm
 		ld a,(_countFor)
@@ -244,7 +402,6 @@ void copyInt(INT i){
 		ld (_object),hl
 	__endasm;
 }
-
 char skipBlank(void) __naked {
 	__asm
 		ld hl,(_source)
@@ -260,6 +417,104 @@ char skipBlank(void) __naked {
 		ret
 	__endasm;
 }
+FUNCPTR seekList(STATEMENT_LIST slist[],unsigned char n) __naked {
+	__asm
+	xor	a
+	ld	h,a
+	ld	l,#2
+	add	hl,sp
+	ld	e,(hl)
+	inc	hl
+	ld	d,(hl)
+;dmyfunc.c:135: i=0;
+	ld	b,a 
+;dmyfunc.c:136: j=19;
+	inc	hl
+	ld	c,(hl)
+;dmyfunc.c:137: do {
+doLop:
+	push	de
+;dmyfunc.c:138: k=(i+j)/2;
+	ld	a,b
+	add	a,c
+	ld	h,#0
+	and	a,#0xfe
+	ld	l,a
+	rra
+	push	af
+;dmyfunc.c:139: l=strlen(slist[k].kw);
+	add	hl,hl
+	add	hl,de
+	push	hl
+	inc	hl
+	inc	hl
+	ld	e, (hl)
+	inc	hl
+	ld	d, (hl)
+	push	bc
+	ld	b,#0
+	ld	h,d
+	ld	l,e
+00114$:
+	ld	a,(hl)
+	or	a
+	jr	z,00113$
+	inc	hl
+	inc	b
+	jr	00114$
+00113$:
+;dmyfunc.c:140: m=strncmp(source,slist[k].kw,l);
+	ld	hl,(_source)
+	ex	de,hl
+	call	_z80strncmp
+	jr	nz,00116$
+	push	af
+	ld	h,#0
+	ld	l,b
+	add	hl,de
+	ld	(_source),hl
+	pop	af
+00116$:
+	pop	bc
+	pop	hl
+;dmyfunc.c:141: if ( m<=0 ) j=k-1;
+	pop	de
+	jr	z,00105$
+	jr	nc,00117$
+00105$:
+	push	af	
+	ld	c,d
+	dec	c
+	pop	af
+;dmyfunc.c:142: if ( m>=0 ) i=k+1;
+00103$:
+	jr	c,00115$
+00117$:
+	ld	b,d
+	inc	b
+;dmyfunc.c:143: } while (i<=j);
+00115$:
+	ld	a,c 
+	sub	a,b
+	pop	de
+	jp	p,doLop
+;dmyfunc.c:144: if (i-1>j) return slist[k].ptr;
+	inc	a
+	jp	p, 00111$
+	ld	a,(hl)
+	inc	hl
+	ld	h, (hl)
+	ld	l,a
+	jr	00110$
+00111$:
+;dmyfunc.c:145: return NULL;
+	ld	hl, #0x0000
+00110$:
+;dmyfunc.c:161: }
+	ret
+
+	__endasm;
+}
 #pragma restore
 #endif
 char compileStr(void){
@@ -267,20 +522,16 @@ char compileStr(void){
 	register char b;
 	signed char j;
 	ID id;
-	b=skipBlank();
-	if (b=='"') {
+	b=checkId();
+	if (b==TOK_SLIT) {
 		source++;
 		copyByte(0x11); // LD DE,source
 		copyInt((int)source);
 		while(*source!='"'&&*source!='\x0') source++;
 		if (*source=='"') source++;
-	} else if (source[1]=='$') {
-		source[0];// This line is required (don't know why).
-		source+=2;
-		if (b<'A' || 'Z'<b) return ERR_SYNTAX;
-		id.name[0]=b;
-		id.name[1]=' ';
-		id.type=VAR_STRT;
+	} else if (b==VAR_STRT) {
+		id.type=b;
+		getId(&id);
 		j=locId(&id);
 		if (j==ID_NOTF) j=enterId(&id);
 		if (j==ID_OVER) return ERR_MEMORY;
@@ -621,150 +872,6 @@ char compileInt(void){
 		// Seek the next operator
 	} while(1);
 }
-/*
-char compileInt(void){
-	register char b;
-	register char op;
-	// Get left value to DE
-	b=compileIntSub();
-	if (b) return b;
-	do {
-		// Get operator
-		op=skipBlank();
-		switch(op){
-			case '+': case '-': case '*': case '/': case '%': case '=':
-				source++;
-				break;
-			case 'A':
-				if (source[1]!='N' || source[2]!='D') return 0;
-				source+=3;
-				break;
-			case 'O':
-				if (source[1]!='R') return 0;
-				source+=2;
-				break;
-			case 'X':
-				if (source[1]!='O' || source[2]!='R') return 0;
-				source+=3;
-				break;
-			case '!':
-				if (source[1]!='=') return 0;
-				source+=2;
-				break;
-			case '<':
-				source++;
-				if (source[0]=='=') {
-					source++;
-					op='(';
-				}
-				break;
-			case '>':
-				source++;
-				if (source[0]=='=') {
-					source++;
-					op=')';
-				}
-				break;
-			default: // Operator not found. Let's return the value (supporsed to be in DE)
-				return ERR_NOTHIN;
-		}
-		// Preserve current DE in stack
-		copyByte(0xD5); // PUSH DE
-		// Get right value to DE
-		b=compileIntSub();
-		if (b) return b;
-		// Caluculate
-		switch(op){
-			case '+':
-				// POP HL; ADD HL,DE
-				copyCode("\xE1\x19",2);
-				object+=2;
-				break;
-			case '-':
-				// POP HL; XOR A; SBC HL,DE
-				copyCode("\xE1\xAF\xED\x52",4);
-				object+=4;
-				break;
-			case '*':
-				// POP HL; CALL mul
-				copyCode("\xE1\xCD",2);
-				object+=2;
-				copyInt((int)mul);
-				break;
-			case '/':
-				// POP HL; CALL div
-				copyCode("\xE1\xCD",2);
-				object+=2;
-				copyInt((int)div);
-				break;
-			case '%':
-				// POP HL; CALL div; EX DE,HL
-				copyCode("\xE1\xCD",2);
-				object+=2;
-				copyInt((int)div);
-				copyByte(0xeb);
-				break;
-			case 'A':
-				// POP HL; LD A,H; AND D; LD H,A; LD A,L; AND E; LD L,A
-				copyCode("\xE1\x7C\xA2\x67\x7D\xA3\x6F",7);
-				object+=7;
-				break;
-			case 'O':
-				// POP HL; LD A,H; OR D; LD H,A; LD A,L; OR E; LD L,A
-				copyCode("\xE1\x7C\xB2\x67\x7D\xB3\x6F",7); 
-				object+=7;
-				break;
-			case 'X':
-				// POP HL; LD A,H; XOR D; LD H,A; LD A,L; XOR E; LD L,A
-				copyCode("\xE1\x7C\xAA\x67\x7D\xAB\x6F",7);
-				object+=7;
-				break;
-			case '=':
-				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JR NZ,skip:; inc HL; skip:
-				copyCode("\xE1\xAF\xED\x52\x67\x6F\x20\x01\x23",9);
-				object+=9;
-				break;
-			case '!':
-				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JRNZ,skip:; inc HL; skip:
-				copyCode("\xE1\xAF\xED\x52\x67\x6F\x28\x01\x23",9);
-				object+=9;
-				break;
-			case '<':
-				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JP P,skip:; INC HL; skip:
-				copyCode("\xE1\xAF\xED\x52\x67\x6F\xF2\x0A\x00\x23",10);
-				object+=7;
-				((int*)object)[0]=(int)object+3;
-				object+=3;
-				break;
-			case '>':
-				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JP M,skip:; JR Z,skip:; INC HL; skip:
-				copyCode("\xE1\xAF\xED\x52\x67\x6F\xFA\x0C\x00\x28\x01\x23",12);
-				object+=7;
-				((int*)object)[0]=(int)object+5;
-				object+=5;
-				break;
-			case '(':
-				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JR Z,skip1: JP P,skip:2; skip1: INC HL; skip:2
-				copyCode("\xE1\xAF\xED\x52\x67\x6F\x28\x03\xF2\x0A\x00\x23",12);
-				object+=9;
-				((int*)object)[0]=(int)object+3;
-				object+=3;
-				break;
-			case ')':
-				// POP HL; XOR A; SBC HL,DE; LD H,A; LD L,A; JP M,skip:; INC HL; skip:
-				copyCode("\xE1\xAF\xED\x52\x67\x6F\xFA\x0A\x00\x23",10);
-				object+=7;
-				((int*)object)[0]=(int)object+3;
-				object+=3;
-				break;
-			default:
-				return ERR_RESERV;
-		}
-		copyByte(0xEB); // EX HL,DE
-		// Seek the next operator
-	} while(1);
-}
-*/
 char compilePrint(void){
 	register char b;
 	char cr=1;
@@ -1342,124 +1449,10 @@ char compileDelete(void){
 	object+=12;
 	return ERR_NOTHIN;
 }
-#ifdef LOCAL_TEST
-#else
-STATEMENT_LIST* statementList(void) __naked {
-	__asm
-		ld hl,#list
-		ret
-		list:
-//		.dw #_compileDebug
-//		.ascii "DEBUG"
-//		.db 0x00
-		.dw #_compileBye
-		.ascii "BYE"
-		.db 0x00
-		.dw #_compileEnd
-		.ascii "END"
-		.db 0x00
-		.dw #_compileNew
-		.ascii "NEW"
-		.db 0x00
-		.dw #_compileRun
-		.ascii "RUN"
-		.db 0x00
-		.dw #_compileLet
-		.ascii "LET "
-		.db 0x00
-		.dw #_compileFor
-		.ascii "FOR "
-		.db 0x00
-		.dw #_compileDim
-		.ascii "DIM "
-		.db 0x00
-		.dw #_compileList
-		.ascii "LIST"
-		.db 0x00
-		.dw #_compileNext
-		.ascii "NEXT"
-		.db 0x00
-		.dw #_compileLoad
-		.ascii "LOAD"
-		.db 0x00
-		.dw #_compileSave
-		.ascii "SAVE"
-		.db 0x00
-		.dw #_compileGoto
-		.ascii "GOTO "
-		.db 0x00
-		.dw #_compilePoke
-		.ascii "POKE "
-		.db 0x00
-		.dw #_compileExec
-		.ascii "EXEC "
-		.db 0x00
-		.dw #_compileDelete
-		.ascii "DELETE"
-		.db 0x00
-		.dw #_compilePrint
-		.ascii "PRINT"
-		.db 0x00
-		.dw #_compileClear
-		.ascii "CLEAR"
-		.db 0x00
-		.dw #_compileRet
-		.ascii "RETURN"
-		.db 0x00
-		.dw #_compileGosub
-		.ascii "GOSUB "
-		.db 0x00
-		.dw #_compileCursor
-		.ascii "CURSOR "
-		.db 0x00
-		.dw 0x0000
-	__endasm;
-}
-
-#pragma save
-#pragma disable_warning 85
-FUNCPTR seekList(STATEMENT_LIST* slist) __naked {
-	__asm
-		ld iy,#0
-		add iy,sp
-		ld e,2(iy)
-		ld d,3(iy)
-	skLop:
-		ex de,hl
-		ld e,(hl)
-		inc hl
-		ld d,(hl)
-		inc hl
-		ld a,e
-		or d
-		ex de,hl
-		ret z
-		push hl
-		push de
-		call _command
-		pop de
-		ld a,l
-		or a
-		pop hl
-		ret nz
-		ex de,hl
-		xor a
-	skLop2:
-		cp (hl)
-		inc hl
-		jr nz,skLop2
-		ex de,hl
-		jr skLop
-	__endasm;
-}
-#pragma restore
-#endif
 char compile(void) {
-	register STATEMENT_LIST* slist;
 	FUNCPTR sfunc;
 	register char e=ERR_NOTHIN;
 	g_ifElseJump=0;
-	slist=statementList();
 	while (skipBlank()!=0x00) {
 		if (command("IF ")) {
 			e=compileIf();
@@ -1469,7 +1462,7 @@ char compile(void) {
 			while(source[0]) source++;
 			break;
 		} else {
-			sfunc=(FUNCPTR)seekList(slist);
+			sfunc=(FUNCPTR)seekList(slist,sizeof(slist)/sizeof(slist[0])-1);
 			if (sfunc) {
 				// Statement found
 				e=sfunc();

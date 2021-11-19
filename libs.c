@@ -119,6 +119,7 @@ void addStr(char* str2, char* str1) __naked {
 #pragma restore
 
 void afterStr(int* var){
+/*
 	char* dest;
 	if (*var==0) {
 		*var=(int)g_tempStr;
@@ -130,6 +131,51 @@ void afterStr(int* var){
 			g_tempStr++;
 		}
 	}
+*/
+
+	__asm
+	ld hl,#2
+	add hl,sp
+	ld a,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,a ; hl=var
+
+; if (*var==0) {
+	ld a,(hl)
+	inc hl
+	ld b,(hl)
+	ld c,a
+	or a,b ; bc = *var
+	ld de,(_g_tempStr)
+	jr nz,00002$
+
+; *var=g_tempStr
+	ld (hl),d
+	dec hl
+	ld (hl),e
+	ret
+00002$:
+; freeMemory(g_tempStr):
+	push de
+	call _freeMemory
+	pop hl
+	ld d,#0x0d
+; dest=(char*)(*var)
+; while ((*dest++=*g_tmpStr++)!=0x0D)
+00003$:
+	ld a,(hl)
+	ld (bc),a
+	cp d
+	jr z,00004$
+	inc hl
+	inc bc
+	jr 00003$
+00004$:
+	ld (_g_tempStr),hl
+	ret
+	__endasm;
+
 }
 
 void listCode(unsigned int from, unsigned int to){
