@@ -591,12 +591,14 @@ void lea(void) __naked {
 }
 void ldea(void) __naked {
 	__asm
+	push bc
 	call _lea
 	ret m
 	ld e,(hl)
 	inc hl
 	ld d,(hl)
 	xor a
+	pop bc
 	ret
 	__endasm;
 }
