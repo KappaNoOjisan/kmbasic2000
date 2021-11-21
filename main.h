@@ -28,6 +28,8 @@ typedef char *OBJECT_CODE;
 
 #endif
 
+#define MAX_STR_LEN 80
+
 #define MAX_NAME_LEN 2
 #define MAX_ID_COUNT 26
 typedef char NAME[MAX_NAME_LEN];
@@ -48,7 +50,7 @@ typedef unsigned int SUB_TABLE;
 
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
-#define FIRST_MEMORY 0x4A00
+#define FIRST_MEMORY 0x4900
 #define LAST_MEMORY 0xdffe
 #define MAX_SUB_COUNT 6 
 #define MAX_FOR_COUNT 8
@@ -111,11 +113,11 @@ typedef struct {
 	volatile int  g_varlimit[MAX_ID_COUNT];
 	volatile const unsigned int g_firstMemory=0, g_lastMemory=0, g_nextMemory=0, g_sourceMemory=0;
 	unsigned int g_objPointer, g_ifElseJump, g_seed;
-	unsigned int g_temp161, g_temp162;
-	char* g_tempStr;
+	//unsigned int g_temp161, g_temp162;
+	//char* g_tempStr;
 	volatile char* source;
 	char* object;
-	char wkbuff[160+1];
+	char wkbuff[MAX_STR_LEN*2+1];
 	char countFor;
 	char countSub;
 #else
@@ -124,10 +126,11 @@ typedef struct {
 	extern int g_varlimit[MAX_ID_COUNT];
 	extern const unsigned int g_firstMemory, g_lastMemory, g_nextMemory, g_sourceMemory;
 	extern unsigned int g_objPointer, g_ifElseJump, g_seed;
-	extern unsigned int g_temp161, g_temp162;
-	extern char* g_tempStr;
+	//extern unsigned int g_temp161, g_temp162;
+	//extern char* g_tempStr;
 	volatile extern char* source;
 	extern char* object;
+	extern char wkbuff[MAX_STR_LEN*2+1];
 	extern char countFor;
 	extern char countSub;
 #endif
@@ -206,9 +209,10 @@ char addCode(void);
 unsigned int getDecimal(void) __naked;
 
 // libs.c
-char* initStr(void) __naked;
-void addStr(char* str2, char* str1) __naked;
-void afterStr(int* var);
+char*initStr(void) __naked;
+char*preStr(void) __naked;
+char*addStr(void) __naked;
+void afterStr(void) __naked;
 void listCode(unsigned int from, unsigned int to);
 void deleteCode(unsigned int from, unsigned int to);
 void printError(char type);

@@ -8,7 +8,7 @@ RELS	= $(SRCS:.c=.rel)
 
 CC	= sdcc
 CFLAG	= -mz80 -c
-CFLA2	= -mz80 --code-loc 0x1500 --data-loc 0x4600 --no-std-crt0
+CFLA2	= -mz80 --code-loc 0x1500 --data-loc 0x4500 --no-std-crt0
 ASM	= sdasz80
 
 $(PROG): $(OBJS) crt/crt.rel Makefile

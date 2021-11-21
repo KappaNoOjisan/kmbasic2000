@@ -63,7 +63,7 @@ static STATEMENT_LIST sflist[] = {
 		.ptr=funcHex,
 		.kw="HEX$"
 	},{
-		.ptr=funcHex,
+		.ptr=funcInput,
 		.kw="INPUT$"
 	}
 };
@@ -194,11 +194,14 @@ char funcVal(){
 char funcInput(){
 	// Call GETLN and remove left part (determined from X cursor position)
 	// of return value
-	// LD A,(CURX); LD DE,g_strBuff; LD L,A; LD H,0;
-	// ADD HL,DE; RST 28h; defb 0; EX DE,HL;
-	copyCode("\x3A\x03\x00\x11\x34\x12\x6F\x26\x00\x19\xEF\x00\xEB",13);
-	((int*)object)[2]=(int)(&g_strBuff[0]);
-	object+=13;
+	// PUSH HL; LD HL,3; LD L,(HL); LD DE,g_strBuff
+	// ADD HL,DE; RST 28h; defb 0; EX DE,HL; POP HL;
+	copyCode("\xe5\x21\x03\x00\x6e",5);
+	object+=5;
+	copyByte(0x11);
+	copyInt((INT)g_strBuff);
+	copyCode("\x19\xEF\x00\xEB\xE1",5);
+	object+=5;
 	return 0;
 }
 

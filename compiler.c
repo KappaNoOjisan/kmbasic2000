@@ -7,7 +7,6 @@
 
 FOR_TABLE forT[MAX_FOR_COUNT];
 SUB_TABLE subT[MAX_SUB_COUNT];
-
 char compileBye();
 char compileClear();
 char compileCursor();
@@ -513,10 +512,12 @@ doLop:
 }
 #pragma restore
 #endif
-char compileStr(void){
+char compileStrSub(void){
 	//Prepare a code to set the pointer to DE register.
 	register char b;
+	register char nc;
 	signed char j;
+	INT var,nstr;
 	ID id;
 	b=checkId();
 	if (b==TOK_SLIT) {
@@ -526,14 +527,27 @@ char compileStr(void){
 		while(*source!='"'&&*source!='\x0') source++;
 		if (*source=='"') source++;
 	} else if (b==VAR_STRT) {
+		nc=0;
 		id.type=b;
 		getId(&id);
 		j=locId(&id);
-		if (j==ID_NOTF) j=enterId(&id);
+		if (j==ID_NOTF) { 
+			j=enterId(&id);
+			nc=1;
+		}
 		if (j==ID_OVER) return ERR_MEMORY;
-		copyCode("\xED\x5B",2); // LD DE,(XXXX)
-		((int*)object)[1]=(int)(&g_variables)+2*(int)j;
-		object+=4;
+		var=(INT)&g_variables[2*j];
+		if (nc) {
+			// new commer
+			copyByte(0xcd);	
+			copyInt((INT)initStr);	// CALL initStr
+			copyByte(0x22);		// LD (var),HL	
+			copyInt(var);
+			copyByte(0xeb);		// EX DE,HL
+		} else {
+			copyInt(0x5bed);	// LD DE,(var)
+			copyInt(var);
+		}
 		if (skipBlank()=='(') {
 			// A$(xx) or A$(xx,yy) (substring function)
 			source++;
@@ -549,7 +563,22 @@ char compileStr(void){
 	}
 	return 0;
 }
-
+char compileStr(void) {
+	register char e;
+	copyByte(0xcd);
+	copyInt((INT)preStr);	// call preStr
+	while (1) {
+		e=compileStrSub();
+		if (e) return e;
+		copyByte(0xcd); // CALL addStr
+		copyInt((INT)addStr);
+		if ('+'!=skipBlank()) {
+			break;
+		}
+		source++;
+	}
+	return ERR_NOTHIN;
+}
 void lea(void) __naked {
 
 	__asm
@@ -896,22 +925,14 @@ char compilePrint(void){
 			default:
 				cr=1;
 				b=checkId();
-				if (b==VAR_STRT||b==TOK_STRF) {
+				if (b==VAR_STRT||b==TOK_STRF||b==TOK_SLIT) {
 					// String
 					b=compileStr();
 					if (b) return b;
+					copyByte(0x11);			// LD DE,wkbuff
+					copyInt((INT)wkbuff);
 					copyCode("\xCD\x09\x15",3);	// CALL 0x1509
 					object+=3;
-				} else if (b==TOK_SLIT) {
-					source++;
-					copyByte(0x11);			// LD DE,source
-					copyInt((int)source);
-					copyCode("\xCD\x09\x15",3);	// CALL 0x1509
-					object+=3;
-					source++;
-					while(*source!='"' && *source!=0) source++;
-					if (*source==0) break;
-					source++;
 				} else if (isExp(b)) {
 					// Integer
 					b=compileInt();
@@ -954,6 +975,7 @@ char compileLet(void){
 	register int dest;
 	signed char j;
 	ID id;
+	char nc;
 	// Seek the name of variable (either A, B, ... or Z)
 	b=checkId();
 	if (!isVar(b)) return ERR_SYNTAX;
@@ -977,35 +999,32 @@ char compileLet(void){
 	if (skipBlank()!='=') return ERR_SYNTAX;
 	source++;
 	// get address
-	if (j==ID_NOTF) j=enterId(&id);
+	nc=0;
+	if (j==ID_NOTF) {
+		j=enterId(&id);
+		nc=1;
+	}
 	if (j==ID_OVER) return ERR_MEMORY;
 	dest=(int)&g_variables[j*2];
 	switch (b) {
 	case VAR_STRT:
-		// String
-		// LD HL,des; PUSH HL; CALL initStr; PUSH HL
-		copyCode("\x21\x34\x12\xE5\xCD\x34\x12\xE5",8);
-		object++;
-		((int*)object)[0]=dest;
-		((int*)object)[2]=(int)initStr;
-		object+=7;
-		while(1) {
-			e=compileStr();
-			if (e) return e;
-			// PUSH DE; CALL addStr; POP DE
-			copyCode("\xD5\xCD\x34\x12\xD1",5);
-			((int*)object)[1]=(int)addStr;
-			object+=5;
-			if (skipBlank()!='+') break;
-			source++;
+		if (nc) {
+			copyByte(0xcd);	
+			copyInt((INT)initStr);	// CALL initStr
+			copyByte(0x22);		// LD (dest),HL	
+			copyInt(dest);
+		} else {
+			copyByte(0x2a);
+			copyInt((INT)dest);	// LD HL,(dest)
 		}
-		// POP HL; CALL afterStr; POP HL
-		copyCode("\xE1\xCD\x34\x12\xE1",5);
-		((int*)object)[1]=(int)afterStr;
-		object+=5;
+		copyByte(0xe5);	// PUSH HL
+		e=compileStr();
+		if (e) return e;
+		copyByte(0xe1); // POP HL
+		copyByte(0xcd);
+		copyInt((INT)afterStr);	// CALL afterStr
 		break;
 	case VAR_INTT: case (VAR_INTT|VAR_ARYT):
-		// Dimension
 		e=compileInt();
 		if (e) return e;
 		if (b==(VAR_INTT|VAR_ARYT)) {
@@ -1407,7 +1426,7 @@ char compileSave(void){
 	char b;
 	char e;
 	b=skipBlank();
-	e=compileStr();
+	e=compileStrSub();
 	if (e) return e;
 	copyByte(0xCD);
 	copyInt((int)saveToTape);
@@ -1418,7 +1437,7 @@ char compileLoad(void){
 	register char e;
 	b=skipBlank();
 	if (b=='"') {
-		e=compileStr();
+		e=compileStrSub();
 		if (e) return e;
 	} else {
 		//LD D,0;
