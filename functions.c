@@ -95,7 +95,7 @@ char* decStr(int num){
 #ifdef LOCAL_TEST
 char* hexStr(INT num){
 	register char* str;
-	memcpy(g_strBuff,"0000\x0D",5);
+	z80memcpy(g_strBuff,"0000\x0D",5);
 	str=&g_strBuff[4];
 	do {
 		str--;
@@ -161,7 +161,7 @@ char* substr1(int pos, char* str){
 	return &str[pos];
 }
 char* substr2(int len, int pos, char* str){
-	memcpy(g_strBuff, str, 81);
+	z80memcpy(g_strBuff, str, 81);
 	str=g_strBuff;
 	if (pos<0) {
 		while (str[0]!=0x0D) str++;

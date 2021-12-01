@@ -580,53 +580,175 @@ char compileStr(void) {
 	return ERR_NOTHIN;
 }
 void lea(void) __naked {
-
+// b=1
+//   (sp+2) X
+// b=2
+//   (sp+2) Y
+//   (sp+4) X
+// b=3
+//   (sp+2) Z
+//   (sp+4) Y
+//   (sp+6) X
 	__asm
-	; a:ofs
-	; de:dim
 
+	; de=offset
 	add a,a
-	ld b,#0
-	ld c,a
+	ld e,a
+	xor a
+	ld d,a
 
-	ld iy,#_g_varlimit
-	add iy,bc
+	; addr =g_valiables[offset]
+	ld hl,#(_g_variables)
+	add hl,de
+	ld c,(hl)
+	inc hl
+	ld h,(hl)
+	ld l,c
+	ld (addr),hl
+
+	ld c,b
+;var1
+	ld iy,#(_g_varlimit)
+	add iy,de
 
 	ld l,0(iy)
 	ld h,1(iy)
-	or a
-	sbc hl,de
-	ld l,#(ERR_SUBSCR)
-	ret m
+	ld (limitX),hl
+	dec c
+	jr z,00003$
 
-	ld hl,#_g_variables
-	add hl,bc
+;var2
+	ld iy,#(_g_extlimit)
+	add iy,de
 
-	ld a,(hl)
-	inc hl
-	ld h,(hl)
-	ld l,a
+	ld l,0(iy)
+	dec c
+	jr nz,00002$
 
-	add hl,de
-	add hl,de
+	ld h,1(iy)	
+	ld (limitY),hl
+	jr lea1
 
-	xor a
-	ret
-	__endasm;
-}
-void ldea(void) __naked {
-	__asm
-	push bc
-	push hl
-	call _lea
-	jp m,00002$
-	ld e,(hl)
-	inc hl
-	ld d,(hl)
+;var3
 00002$:
-	pop hl
+	ld h,a
+	ld (limitY),hl
+	
+	ld l,1(iy)
+	ld (limitZ),hl
+	
+00003$:
+	push ix
+	ld ix,#limitX
+
+	; de= b*2
+	ld d,a
+	ld a,b
+	add a,a
+	ld e,a
+
+	; iy=(sp+b*2)
+	ld iy,#2
+	add iy,sp
+	add iy,de
+
+	ld c,b
+00004$:
+
+	ld l,0(ix)
+	ld h,1(ix) ; hl=limit
+
+	ld e,0(iy)
+	ld d,1(iy) ; de=stack
+
+	;if offset<0 then abend;
+	dec d
+	inc d
+	jp m,abend
+
+	;if limit<offset then abend
+	xor a
+	sbc hl,de ; hl<de
+	jp m,abend
+
+	ld de,#-2
+	add ix,de
+	add iy,de
+	djnz 00004$
+
+	ld b,c
+	pop ix
+
+	pop hl ; retAdr
+	ld (retSv),hl
+lea1:
+	; addr+=offsetX;
+
+	ld hl,(addr)
+	pop de
+	add hl,de
+	add hl,de
+	ld (addr),hl
+	dec c
+	jr z,exitlea
+
+lea2:
+	; addr+=offsetY*(limitX+1)
+	pop de
+
+	ld hl,(limitX)
+	inc hl
+	push hl
+
+	push bc
+	ex de,hl
+	add hl,hl
+	call _mul
 	pop bc
-	ret
+
+	ex de,hl
+	ld hl,(addr)
+	add hl,de
+	ld (addr),hl
+
+	pop hl
+
+	dec c
+	jr z,exitlea
+
+lea3:
+	; addr+=offsetZ*(limitX+1)*(limitY+1)
+	pop de
+
+	ex de,hl
+	add hl,hl
+	call _mul
+
+	ld de,(limitY)
+	inc de
+	call _mul
+	
+exitlea:
+	xor a
+	ld iy,(retSv)
+	jp (iy)
+
+abend:
+	ld l,#(ERR_SUBSCR)
+	ld b,c
+spret:
+	pop de
+	djnz spret
+	ld iy,(retSv)
+	jp (iy)
+
+addr  : .dw 0
+limitZ: .dw 0
+limitY:	.dw 0
+limitX:	.dw 0
+
+retSv:  .dw 0
+
 	__endasm;
 }
 char compileIntSub(void){
@@ -634,6 +756,8 @@ char compileIntSub(void){
 	int i;
 	signed char j;
 	ID id;
+	BYTE ndim,nc;
+	INT limit[MAX_DIM_COUNT];
 	// Value will be in DE.
 	switch (b=checkId()) {
 	case TOK_LPAR:	
@@ -665,22 +789,40 @@ char compileIntSub(void){
 		// Hexadecimal or decimal
 		source=getInt(source,&i);
 		copyByte(0x11); // LD DE,XXXX
-		copyInt(i);
+		copyInt((INT)i);
 		break;
 	case (VAR_INTT|VAR_ARYT):
 		getId(&id);
 		id.type=b;
 		j=locId(&id);
 		if (j==ID_NOTF) return ERR_SUBSCR;
+		ndim = idTable[j].type & 0x0f;
+		nc=1;
 		b=compileInt();
 		if (b) return b;
-		if (skipBlank()!=')') return ERR_SYNTAX;
+		copyByte(0xD5); //PUSH DE
+		while (TOK_CMMA==checkId()) {
+			*source++;
+			if (++nc>ndim)
+				return ERR_SUBSCR;
+			// extra
+			b=compileInt();
+			if (b) return b;
+			copyByte(0xD5); // PUSH DE
+		}
+		if (*source!=')') return ERR_SYNTAX;
 		source++;
-		// LD A,#j; CALL ldea; RET M
+		// LD A,#j 
 		copyInt((j*0x100)+0x3e);
+		// LD B,#ndim
+		copyInt(ndim*0x100+0x06);
+		// CALL lea; RET M
 		copyByte(0xCd);
-		copyInt((INT)ldea);
+		copyInt((INT)lea);
 		copyByte(0xf8);
+		// LD E,(HL); INC HL; LD D,(HL)
+		copyCode("\x5e\x23\x56",3);
+		object+=3;
 		break;
 	case VAR_INTT:
 		getId(&id);
@@ -921,7 +1063,7 @@ char compilePrint(void){
 				object+=4;
 				continue;
 			case 'E':
-				if (!strncmp(source,"ELSE ",5)) break;
+				if (command("ELSE ")) break;
 			default:
 				cr=1;
 				b=checkId();
@@ -974,6 +1116,7 @@ char compileLet(void){
 	register char b,e;
 	register int dest;
 	signed char j;
+	char ndim;
 	ID id;
 	char nc;
 	// Seek the name of variable (either A, B, ... or Z)
@@ -985,11 +1128,24 @@ char compileLet(void){
 	if (b==(VAR_INTT|VAR_ARYT)) {
 		if (j==ID_NOTF) return ERR_SUBSCR;
 		// Dimension
+		ndim = idTable[j].type & 0x0f;
+		nc=0;
 		e=compileInt();
 		if (e) return e;
-		if (skipBlank()!=')') return ERR_SYNTAX;
+		copyByte(0xd5); //PUSH DE
+		nc=nc+1;
+		while (TOK_CMMA==checkId()) {
+			source++;
+			if (++nc>MAX_DIM_COUNT)
+				return ERR_SUBSCR;
+			e=compileInt();
+			if (e) return e;
+			copyByte(0xD5); // PUSH DE
+		}
+		if (')' != *source) return ERR_SYNTAX;
 		source++;
-
+		// push effective address
+		copyInt((ndim*0x100)+0x06);	// LD B,#ndim
 		copyInt((j*0x100)+0x3e);	// LD A,#j
 		copyByte(0xCd); 		// CALL _lea
 		copyInt((INT)lea);
@@ -1107,13 +1263,13 @@ char compileFor(void){
 	copyInt(vadr);
 	if (e) return e;
 	// TO statement
-	if (strncmp(source,"TO ",3)) return ERR_SYNTAX;
+	if (command("TO ")) return ERR_SYNTAX;
 	source+=3;
 	e=compileInt();
 	if (e) return e;
 	// STEP statement
 	skipBlank();
-	if (!strncmp(source,"STEP ",5)) {
+	if (!command("STEP ")) {
 		source+=5;
 		copyByte(0xEb); // EX DE,HL
 		e=compileInt();
@@ -1277,7 +1433,7 @@ char compileIf(void){
 	e=compileInt();
 	if (e) return e;
 	skipBlank();
-	if (strncmp(source,"THEN ",5)) return ERR_SYNTAX;
+	if (command("THEN ")) return ERR_SYNTAX;
 	source+=5;
 	copyCode("\x7A\xB3\x20\x03\xC3",5);
 	object+=7;
@@ -1321,58 +1477,120 @@ char compileCursor(void){
 	object+=8;
 	return ERR_NOTHIN;
 }
-void allocateDim(void) __naked {
+char allocateDim(void) __naked {
 	// a : idofs
-	// de: maxdim
+        // b : countDim 3 2 1
+	//(sp+0): retA
+	//(sp+2): limit z y x
+	//(sp+4): limit y x
+	//(sp+6): limit x
 	__asm
-		ld b,a
-		ld a,d
-		or a
-		ld a,b
-		jp p,00002$
-	;
-		push af
-		inc sp
-		call _removeId
-		inc sp
-		ld l,#(ERR_SUBSCR)
-		ret
+
+		ld iy,#2
+		add iy,sp
+
+		ld c,b
+
+		; retA
+		pop hl
+		ld (00010$),hl
+
+		ld hl,#1
+
 	00002$:
-		ex de,hl
-		push hl ; hl=max
+		pop de	; de=(sp); sp+=2
+
+		inc d
+		dec d
+		jp m,00003$
+
+
+		push af ; idofs(
+		push bc ; countDim(
+		push de ; limit(
+		call _mul ; hl=hl*(limit+1)
+		pop de  ; )limit
+		pop bc  ; )countDim
+		pop af  ; )idofs
+
+		djnz 00002$	
+		
+	00004$:
+		push bc ; (countDim
+		push de ; (limit x
+		push af ; (idofs
 
 		inc hl
 		add hl,hl ; hl=memsize
-
-		add a,a
-		ld e,a
-		ld d,#0
-		push de ; de=offset
-
 		push hl
 		call _allocateMemory
-		pop de
-		
-		ld iy,#(_g_variables)
-		pop de ; offset
-		add iy,de
-		ld 0(iy),l
-		ld 1(iy),h
+		pop af
+		ex de,hl  ; de=allocptr
+
+		pop af    ; )idofs
+		add a,a
+		ld c,a
+		ld b,#0
+
+		ld hl,#(_g_variables)
+		add hl,bc ; varptr
+		ld (hl),e
+		inc hl 
+		ld (hl),d
+
+		pop de ; )limitx
 
 		ld hl,#(_g_varlimit)
-		add hl,de
-		pop de ; max
+		add hl,bc
 		ld (hl),e
 		inc hl
 		ld (hl),d
+
+		ld hl,#(_g_extlimit)
+		add hl,bc
+
+		pop bc   ; )countDim
+		dec c
+		jr z,00005$ ; =1
+		
+		ld e,0(iy)
+		ld d,1(iy)
+		ld (hl),e   ;limitY
+		inc hl
+		ld (hl),d
+		
+		dec c
+		jr z,00005$ ; =2	
+
+		ld e,2(iy)
+		ld (hl),e   ;limitZ
+	00005$:
 		xor a
-		ret	
+	00006$:
+		ld hl,(00010$)
+		jp (hl)
+	; error
+	00003$:
+		ld l,#(ERR_SUBSCR)
+		dec b
+		jr nz,00007$
+		jp (ix)
+	00007$:
+		pop de
+		djnz 00007$
+		jr 00006$
+
+	00010$:
+		.dw 2
+
 	__endasm;
 }
 char compileDim(void){
 	char b;
 	int j;
 	ID id;
+
+	countDim=1;
 	while(1){
 		b=checkId();
 		if (b!=(VAR_INTT|VAR_ARYT)) return ERR_SYNTAX;
@@ -1380,17 +1598,33 @@ char compileDim(void){
 		id.type=b;
 		j=locId(&id);
 		if (j!=ID_NOTF) return ERR_DUPLID;
-		// subscript
+
 		b=compileInt();
 		if (b) return b;
-		if (skipBlank()!=')') return ERR_SYNTAX;
+		copyByte(0xD5); // PUSH DE
+
+		while(TOK_CMMA==checkId()) {
+			source++;	
+			if (++countDim>MAX_DIM_COUNT) {
+				return ERR_SUBSCR;
+			}
+			// subscript
+			b=compileInt();
+			if (b) return b;
+			copyByte(0xD5); // PUSH DE
+		}
+		if (*source!=')') return ERR_SYNTAX;
 		source++;
 		// enter
+		id.type |= countDim;
 		j=enterId(&id);
 		if ( j==ID_OVER ) return ERR_MEMORY;
 
-		// LD A,#j; CALL allocateDim; RET M; 
+		// LD A,#j; 
 		copyInt((j*0x100)+0x3e);
+		// LD B,#countDim;
+		copyInt(countDim*0x100+0x06);
+		// CALL allocateDim; RET M;
 		copyByte(0xCD);
 		copyInt((INT)allocateDim);
 		copyByte(0xF8);

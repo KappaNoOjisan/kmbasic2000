@@ -8,7 +8,6 @@
 .globl __allocateMemory
 .globl _freeMemory
 .globl __freeMemory
-.globl _strncmp
 .globl __decI
 .globl __hexI
 .globl _mul
@@ -45,7 +44,6 @@ JP _printBreak       ;$1509
 JP _checkBreak       ;$150c
 JP __allocateMemory  ;$150f
 JP __freeMemory      ;$1512
-JP _strncmp          ;$1515
 
 _initProc:
  call gsinit

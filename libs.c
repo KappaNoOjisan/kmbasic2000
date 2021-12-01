@@ -149,7 +149,7 @@ void deleteCode(unsigned int from, unsigned int to){
 	} else {
 		moveSize=(unsigned int)moveFrom-g_sourceMemory;
 		moveTo-=moveSize;
-		memmove(moveTo,(void*)g_sourceMemory,moveSize);
+		z80memcpy(moveTo,(void*)g_sourceMemory,moveSize);
 		g_sourceMemory=(unsigned int)moveTo;
 	}
 		
@@ -341,25 +341,25 @@ void getRand(void){
 	__endasm;
 }
 
-void saveToTape(){
+void saveToTape(void){
 	static int i;
 	static int size;
 	//Set file information
 	__asm
-		ld b,#16
+		ld b,#(16)
 		ld hl,(_f)
 		ld (hl),#2
 		inc hl
-	0002$:
+0002$:
 		ld a,(de)
-		cp a,#0x0d
+		cp a,#(0x0d)
 		jr z,0003$
 		inc de
 		ld (hl),a
 		inc hl
 		dec b
 		jr 0002$
-	0003$:
+0003$:
 		ld (hl),a
 		inc hl
 		djnz 0003$
@@ -382,7 +382,7 @@ void saveToTape(){
 	}
 }
 
-void loadFromTape(){
+void loadFromTape(void){
 
 	__asm
 		ld a,d
@@ -396,6 +396,7 @@ void loadFromTape(){
 
 	size = f->size;
 	newLine();
+
 	__asm
 		ld hl,#(0005$)
 		push hl
@@ -410,6 +411,7 @@ void loadFromTape(){
 		call _printStr
 		pop af	
 	__endasm;
+
 	newLine();	
 	// Prepare to load
 	clearMemory();
@@ -420,6 +422,7 @@ void loadFromTape(){
 	}
 	g_sourceMemory=g_lastMemory-size;
 	f->dtadr=g_sourceMemory;
+
 	// Load data
 	__asm
 		rst 0x28

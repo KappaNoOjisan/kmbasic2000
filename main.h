@@ -50,10 +50,12 @@ typedef unsigned int SUB_TABLE;
 
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
-#define FIRST_MEMORY 0x4900
+#define FIRST_MEMORY 0x4800
 #define LAST_MEMORY 0xdffe
-#define MAX_SUB_COUNT 6 
-#define MAX_FOR_COUNT 8
+#define MAX_SUB_COUNT 4
+#define MAX_FOR_COUNT 6
+#define MAX_DIM_COUNT 3
+
 typedef struct {
 	char atbr;
 	char name[16];
@@ -71,8 +73,6 @@ typedef struct {
 #define ID_NOTF -3
 
 // variable descriptor
-#define VAR_NULL 0x00
-#define VAR_USED 0x80
 #define VAR_INTT 0x40
 #define VAR_STRT 0x20
 #define VAR_ARYT 0x10
@@ -83,7 +83,8 @@ typedef struct {
 #define TOK_LPAR 0x04
 #define TOK_STRF 0x05
 #define TOK_INTF 0x06
-#define TOK_WHAT 0x07
+#define TOK_CMMA 0x07
+#define TOK_WHAT 0xff
 
 // error code
 #define ERR_NOTHIN 0
@@ -110,29 +111,31 @@ typedef struct {
 		"0---------------1---------------2---------------3---------------"
 		"4---------------5---------------6---------------7---------------";
 	volatile const char g_variables[MAX_ID_COUNT*2];
-	volatile int  g_varlimit[MAX_ID_COUNT];
-	volatile const unsigned int g_firstMemory=0, g_lastMemory=0, g_nextMemory=0, g_sourceMemory=0;
-	unsigned int g_objPointer, g_ifElseJump, g_seed;
-	//unsigned int g_temp161, g_temp162;
-	//char* g_tempStr;
+	volatile INT g_varlimit[MAX_ID_COUNT];
+	volatile INT g_extlimit[MAX_ID_COUNT];
+	volatile const INT g_firstMemory=0, g_lastMemory=0, g_nextMemory=0, g_sourceMemory=0;
+	INT g_objPointer, g_ifElseJump, g_seed;
 	volatile char* source;
 	char* object;
 	char wkbuff[MAX_STR_LEN*2+1];
 	char countFor;
 	char countSub;
+	TYPE countDim;
+	ID idTable[MAX_ID_COUNT];
 #else
 	extern const char g_strBuff[];
 	extern const char g_variables[MAX_ID_COUNT*2];
-	extern int g_varlimit[MAX_ID_COUNT];
-	extern const unsigned int g_firstMemory, g_lastMemory, g_nextMemory, g_sourceMemory;
-	extern unsigned int g_objPointer, g_ifElseJump, g_seed;
-	//extern unsigned int g_temp161, g_temp162;
-	//extern char* g_tempStr;
+	extern INT g_varlimit[MAX_ID_COUNT];
+	extern INT g_extlimit[MAX_ID_COUNT];
+	extern const INT g_firstMemory, g_lastMemory, g_nextMemory, g_sourceMemory;
+	extern INT g_objPointer, g_ifElseJump, g_seed;
 	volatile extern char* source;
 	extern char* object;
 	extern char wkbuff[MAX_STR_LEN*2+1];
 	extern char countFor;
 	extern char countSub;
+	extern TYPE countDim;
+	extern ID idTable[MAX_ID_COUNT];
 #endif
 
 // Macros to turn (const unsigned int) to (unsigned int)
@@ -204,6 +207,11 @@ char compileIntFunc(void);
 char compileStrFunc(void);
 
 // editor.c
+#ifdef LOCAL_TEST
+#define z80memcpy memcpy
+#else
+void z80memcpy(char*des, char*sce, size_t size) __naked;
+#endif
 void newCode(void);
 char addCode(void);
 unsigned int getDecimal(void) __naked;
