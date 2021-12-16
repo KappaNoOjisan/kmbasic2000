@@ -76,9 +76,10 @@ unsigned int getDecimal(void) __naked {
 
 +n+5  next line
 */
-unsigned int sourceStart;
-unsigned int lineNum,lineLen;
-unsigned int sourceLen;
+INT sourceStart;
+BYTE sourceLen;
+INT lineNum;
+BYTE lineLen;
 
 char* findLine(void) __naked {
 	__asm
@@ -110,20 +111,20 @@ char* findLine(void) __naked {
 	ld a,(hl)
 	cp e
 	ret nc
-
 00004$:
-	push de
-	ld de,(_lineLen)
-	add hl,de
-	pop de
-
+	ld a,(_lineLen)
+	add a,l
+	ld l,a
+	jr nc,0002$
+	inc h
 	jr 00002$
 00003$:
 	; not found
 	ld h,b
 	ld l,c
-	xor a
-	dec a
+	inc hl
+	ld a,#0x7f
+	inc a
 	ret
 	__endasm;
 }
@@ -132,54 +133,43 @@ char addCode(void) __naked {
 	call _clearMemory
 
 	; Determine line number
-
-	call _checkId
-	dec l
-	ld l,#(ERR_SYNTAX)
-	ret nz
-
-	ld hl,(_source)
-	ld a,(hl)
-	cp #('$')
-	ret z
-		
 	call _getDecimal
 	ld (_lineNum),hl
 
-	call _skipBlank
-
 	; Determine source length and go back to original source position.
-
+	call _skipBlank
 	ld hl,(_source)
-	ld de,#0
+
+	ld e,#0
 00003$:
 	ld a,(hl)
+	inc e
+	inc hl
 	or a
 	jr z,00002$
-	inc hl
-	inc e
 	jr 00003$
 
 00002$:
-	inc e
-	ld (_sourceLen),de
+	ld a,e
+	ld (_sourceLen),a
+	dec e
+	ld hl,(_g_sourceMemory)
+	jr z,00006$
 	
 	; Check if available memory.
 
-	; bc=sourceLen+5
-	ld b,d
-	ld a,e
+	; c=sourceLen+5
 	add a,#5
 	ld c,a
 
 	; hl=g_sourceMemory-g_firstMemory
-	ld hl,(_g_sourceMemory)
 	ld de,(_g_firstMemory)
 	or a
 	sbc hl,de
 
 	; if hl<bc return ERR_MEMORY
-	or a
+	xor a
+	ld b,a
 	sbc hl,bc
 	jr nc,00004$
 
@@ -190,113 +180,137 @@ char addCode(void) __naked {
 	; sourceStart=g_sourceMemory
 	add hl,de
 	add hl,bc
+00006$:
 	ld (_sourceStart),hl
 
 00005$:
-	; Delete the line with same number
-
 	call _findLine
 	ld (_sourceStart),hl
 	jr nz,00008$
 
+	; Delete the line with same number
+
 	; bc=sourceStart-g_sourceMemory
 	ld de,(_g_sourceMemory)
-	or a
+	xor a
 	sbc hl,de
-	ld b,h
-	ld c,l
+	push hl
+	push af
 
 	; de = g_sourceMemory+lineLen
+	; hl = g_sourceMemory
+
 	ld hl,(_lineLen)
+	ld h,a
 	add hl,de
 	ld (_g_sourceMemory),hl
 	ex de,hl
 
-	; hl = g_sourceMemory
-
-	ld a,b
-	or c
+	pop af
+	pop bc
 	jr z,00008$
 
-	dec bc
 	add hl,bc
 
 	ex de,hl
 	add hl,bc
 	ex de,hl
-
-	inc bc
+	dec hl
+	dec de
 	lddr
 00008$:
-	; Return if source code is null (the command is "delete a line").
-	ld a,(_sourceLen)
-	sub a,#2
-	jr nc,00009$
 
-	ld l,#(ERR_NOTHIN)
-	ret
-00009$:
-	;if g_sourceMemory==g_lastMemory
 	ld hl,(_g_sourceMemory)
 	ld de,(_g_lastMemory)
-	or a
+	xor a
 	sbc hl,de
+	push af
+	ld b,#1
+	add hl,de
+	pop af
+
+	jr c,00001$
+
+	; if hl>=de
+	ld b,a
+	ex de,hl
+	ld (_g_sourceMemory),hl
+
+00001$:
+	; Return if source code is null (the command is "delete a line").
+	ld a,(_sourceLen)
+	dec a
+	jr nz,00009$
+
+	ld l,#(ERR_NOTHIN)
+	ret	
+
+00009$:
+	ld d,b
+
+	; bc=sourceLen+5
+	add a,#6
+	ld c,a
+	xor a
+	ld b,a
+
+	dec d
+	inc d	
 	jr nz,00012$
 
 	;The first line of code.
 
-	;g_sourceMemory-=sourceLen+5
-	ex de,hl
-	ld a,(_sourceLen)
-	add a,#5
-	ld c,a
-	xor a
-	ld b,a
+	;g_sourceMemory-=bc
+	inc hl
+	or a
 	sbc hl,bc
+
 	ld (_g_sourceMemory),hl
 	ld (_sourceStart),hl
+
 	jr 00010$
 
 00012$:
-
 	;Make a space for new line
 
-	;bc=sourceStart-g_sourceMemory
-	call _findLine
 	ld (_sourceStart),hl
-	ld de,(_g_sourceMemory)
+	push bc
+	call _findLine
+	pop bc
+00007$:
+	;sourceStart-=bc
+	push hl ; (sourceStart
+	or a
+	sbc hl,bc
+	ld (_sourceStart),hl
+
+	; g_sourceMemory-=bc+1
+	ld hl,(_g_sourceMemory)	
+	push hl ; (g_sourceMemory
+	or a
+	sbc hl,bc
+	ld (_g_sourceMemory),hl
+
+	;bc=sourceSrart-g_sourceMemory
+	pop de ; )g_sourceMemory
+	pop hl ; )sourceStart
 	or a
 	sbc hl,de
+	jr z,00010$
+
 	ld b,h
 	ld c,l
 
-	;de=g_sourceMemory-sourceLen-5
+	ld hl,(_g_sourceMemory)
 	ex de,hl
-	push hl	; (g_sourceMemory
-
-	ld a,(_sourceLen)
-	add a,#5
-	ld e,a
-	xor a
-	ld d,a
-
-	sbc hl,de
-	ld (_g_sourceMemory),hl
-
-	push hl
-	ld hl,(_sourceStart)
-	or a
-	sbc hl,de
-	ld (_sourceStart),hl
-	pop de
-
-	pop hl ; )g_sourceMemory
 
 	ldir
 
+	ex de,hl
+
+
 00010$:
 	; Insert a line
-	ld hl,(_sourceStart)
 	ld de,(_lineNum)
 	ld (hl),e
 	inc hl
@@ -316,7 +330,9 @@ char addCode(void) __naked {
 
 	ex de,hl
 	ld hl,(_source)
-	ld bc,(_sourceLen)
+	ld b,a
+	ld a,(_sourceLen)
+	ld c,a
 	ldir
 
 	ld l,#(ERR_NOTHIN)

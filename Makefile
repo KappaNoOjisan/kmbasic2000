@@ -50,5 +50,6 @@ clean:
 	rm $(LSTS) 
 	rm $(ASMS)
 	rm $(SYMS)
+	rm crt.map
 	rm release.ihx
 

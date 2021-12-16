@@ -307,7 +307,7 @@ _stade2:
 ;
 ; stack area
 ;
-	.ds 200
+	.ds 160
 __kmstack::
 
 

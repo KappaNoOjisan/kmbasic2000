@@ -591,6 +591,9 @@ void lea(void) __naked {
 //   (sp+6) X
 	__asm
 
+	pop hl
+	ld (retSv),hl
+
 	; de=offset
 	add a,a
 	ld e,a
@@ -627,7 +630,7 @@ void lea(void) __naked {
 
 	ld h,1(iy)	
 	ld (limitY),hl
-	jr lea1
+	jr 00003$
 
 ;var3
 00002$:
@@ -648,7 +651,7 @@ void lea(void) __naked {
 	ld e,a
 
 	; iy=(sp+b*2)
-	ld iy,#2
+	ld iy,#0
 	add iy,sp
 	add iy,de
 
@@ -664,12 +667,12 @@ void lea(void) __naked {
 	;if offset<0 then abend;
 	dec d
 	inc d
-	jp m,abend
+	jp m,00007$
 
 	;if limit<offset then abend
 	xor a
 	sbc hl,de ; hl<de
-	jp m,abend
+	jp m,00007$
 
 	ld de,#-2
 	add ix,de
@@ -679,9 +682,8 @@ void lea(void) __naked {
 	ld b,c
 	pop ix
 
-	pop hl ; retAdr
-	ld (retSv),hl
-lea1:
+00005$:
+;lea1
 	; addr+=offsetX;
 
 	ld hl,(addr)
@@ -690,15 +692,15 @@ lea1:
 	add hl,de
 	ld (addr),hl
 	dec c
-	jr z,exitlea
+	jr z,00006$
 
-lea2:
+;lea2
 	; addr+=offsetY*(limitX+1)
 	pop de
 
 	ld hl,(limitX)
 	inc hl
-	push hl
+	push hl	;(limitX+1
 
 	push bc
 	ex de,hl
@@ -706,42 +708,61 @@ lea2:
 	call _mul
 	pop bc
 
-	ex de,hl
-	ld hl,(addr)
-	add hl,de
-	ld (addr),hl
+	call 00010$
 
-	pop hl
+	pop hl ;)limitX+1
 
 	dec c
-	jr z,exitlea
+	jr z,00006$
 
-lea3:
+;lea3
 	; addr+=offsetZ*(limitX+1)*(limitY+1)
 	pop de
+
+	push bc
 
 	ex de,hl
 	add hl,hl
 	call _mul
+	ex de,hl
 
-	ld de,(limitY)
-	inc de
+	ld hl,(limitY)
+	inc hl
 	call _mul
 	
-exitlea:
+	pop bc
+	
+	call 00010$
+	
+00006$:
 	xor a
-	ld iy,(retSv)
-	jp (iy)
+	jr 00009$
 
-abend:
-	ld l,#(ERR_SUBSCR)
+;abend
+
+00007$:
+	pop ix
+	ld a,#(ERR_SUBSCR)
 	ld b,c
-spret:
+00008$:
 	pop de
-	djnz spret
-	ld iy,(retSv)
-	jp (iy)
+	djnz 00008$
+00009$:
+	ld hl,(retSv)
+	push hl
+	ld hl,(addr)
+	ret p
+	ld l,a
+	ret
 
+; (addr)+=hl
+00010$:
+	ex de,hl
+	ld hl,(addr)
+	add hl,de
+	ld (addr),hl
+	ret
+	
 addr  : .dw 0
 limitZ: .dw 0
 limitY:	.dw 0
@@ -1263,14 +1284,12 @@ char compileFor(void){
 	copyInt(vadr);
 	if (e) return e;
 	// TO statement
-	if (command("TO ")) return ERR_SYNTAX;
-	source+=3;
+	if (!command("TO ")) return ERR_SYNTAX;
 	e=compileInt();
 	if (e) return e;
 	// STEP statement
 	skipBlank();
-	if (!command("STEP ")) {
-		source+=5;
+	if (command("STEP ")) {
 		copyByte(0xEb); // EX DE,HL
 		e=compileInt();
 		if (e) return e;
@@ -1433,8 +1452,7 @@ char compileIf(void){
 	e=compileInt();
 	if (e) return e;
 	skipBlank();
-	if (command("THEN ")) return ERR_SYNTAX;
-	source+=5;
+	if (!command("THEN ")) return ERR_SYNTAX;
 	copyCode("\x7A\xB3\x20\x03\xC3",5);
 	object+=7;
 	g_ifElseJump=(unsigned int)object-2;
@@ -1485,52 +1503,53 @@ char allocateDim(void) __naked {
 	//(sp+4): limit y x
 	//(sp+6): limit x
 	__asm
+		; save countDim
+		ld (00011$),bc
+
+		; save offSet
+		add a,a
+		ld l,a
+		ld h,#0
+		ld (00010$),hl
 
 		ld iy,#2
 		add iy,sp
 
-		ld c,b
-
-		; retA
-		pop hl
-		ld (00010$),hl
-
 		ld hl,#1
-
+		
 	00002$:
-		pop de	; de=(sp); sp+=2
+		ld e,0(iy)
+		ld d,1(iy)
 
 		inc d
 		dec d
 		jp m,00003$
 
-
-		push af ; idofs(
-		push bc ; countDim(
+		push bc
 		push de ; limit(
+		inc de
 		call _mul ; hl=hl*(limit+1)
 		pop de  ; )limit
-		pop bc  ; )countDim
-		pop af  ; )idofs
+		pop bc
+
+		inc iy
+		inc iy
 
 		djnz 00002$	
 		
-	00004$:
-		push bc ; (countDim
-		push de ; (limit x
-		push af ; (idofs
+		ld iy,#4
+		add iy,sp
 
-		inc hl
+	00004$:
+		push de ; (limit x
 		add hl,hl ; hl=memsize
+
 		push hl
 		call _allocateMemory
 		pop af
 		ex de,hl  ; de=allocptr
 
-		pop af    ; )idofs
-		add a,a
-		ld c,a
-		ld b,#0
+		ld bc,(00010$) ; offset
 
 		ld hl,#(_g_variables)
 		add hl,bc ; varptr
@@ -1549,8 +1568,8 @@ char allocateDim(void) __naked {
 		ld hl,#(_g_extlimit)
 		add hl,bc
 
-		pop bc   ; )countDim
-		dec c
+		ld bc,(00011$)   ;countDim
+		dec b
 		jr z,00005$ ; =1
 		
 		ld e,0(iy)
@@ -1559,7 +1578,7 @@ char allocateDim(void) __naked {
 		inc hl
 		ld (hl),d
 		
-		dec c
+		dec b
 		jr z,00005$ ; =2	
 
 		ld e,2(iy)
@@ -1567,21 +1586,32 @@ char allocateDim(void) __naked {
 	00005$:
 		xor a
 	00006$:
-		ld hl,(00010$)
-		jp (hl)
-	; error
+		push af
+		ld a,(#00011$+1) ; countDim
+		add a,a
+		add a,#2
+		ld l,a
+		ld h,#0
+		pop af
+
+		add hl,sp
+		ld sp,hl
+		
+		ld l,-4(iy) ;retA
+		ld h,-3(iy)
+		push hl
+
+		ld l,a
+		ret
+	; error		
 	00003$:
-		ld l,#(ERR_SUBSCR)
-		dec b
-		jr nz,00007$
-		jp (ix)
-	00007$:
-		pop de
-		djnz 00007$
+		ld a,#(ERR_SUBSCR)
+		ld iy,#4
+		add iy,sp
 		jr 00006$
 
-	00010$:
-		.dw 2
+	00010$:	.dw 2	; offset
+	00011$:	.dw 2	; countDim		
 
 	__endasm;
 }

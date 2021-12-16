@@ -50,7 +50,7 @@ typedef unsigned int SUB_TABLE;
 
 #define LINE_BUFFER 0x1380
 #define FILE_INFO 0x1300
-#define FIRST_MEMORY 0x4800
+#define FIRST_MEMORY 0x4900
 #define LAST_MEMORY 0xdffe
 #define MAX_SUB_COUNT 4
 #define MAX_FOR_COUNT 6
