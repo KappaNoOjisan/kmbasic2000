@@ -1,3 +1,7 @@
+このプログラムは「フリーソフトウェア」です。
+「GNU ゼネラル パブリック ライセンス規約」に従い、自由に改変、再配布可能です。
+どんどん改変しちゃってください。
+
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation, either version 2 of the License, or
