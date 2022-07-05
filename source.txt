@@ -1,16 +1,21 @@
-0. development plathome
- HOST: Linux( 4.19.0-18-amd64 )
-     sdcc
+KMBASIC2000 は以下の開発基盤により作成されています。
 
- TARGET: CarryDos 1.0
+0. 開発プラットホームOS : Cross Development Plathome OS
+ HOST: Linux( 4.19.0-18-amd64 ) and SDCC compiler
 
-1. sdcc version
-SDCC : mcs51/z80/z180/r2k/r3ka/gbz80/tlcs90/ds390/TININative/ds400/hc08/s08/stm8 3.8.0 #10562 (Linux)
+1. ターゲットOS : TARGET OS 
+ GUEST: CarryDos 1.0 for mz2000
 
- Compile warnings:
+2. コンパイラバージョン : SDCC version
+  SDCC : mcs51/z80/z180/r2k/r3ka/gbz80/tlcs90/ds390/TININative/ds400/hc08/s08/stm8 3.8.0 #10562 (Linux)
+
+  コンパイルの警告について : Compile warnings
+  できるだけワーニングを消してはいるが、いくつかのワーニングが出力される。私には原因を特定できず理解不能のため放置してある。
   Some warnings I personally couldn't tolerate, so I turned them off, but I haven't been able to turn off warnings I'm not sure about.
 
-2. customized startup
-see crt/crt.asm
+3. スタートアップルーチンの改造について : customized startup
+  標準のスタートアップルーチンが使えなかったので独自に実装してあります。
+  ソースを参照してください。
+  see crt/crt.asm
 
 
