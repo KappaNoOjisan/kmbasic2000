@@ -1,10 +1,11 @@
 KMBASIC2000 は以下の開発基盤により作成されています。
 
 0. 開発プラットホームOS : Cross Development Plathome OS
- HOST: Linux( 4.19.0-18-amd64 ) and SDCC compiler
+ HOST OS: Linux( 4.19.0-18-amd64 ) and SDCC compiler
 
-1. ターゲットOS : TARGET OS 
- GUEST: CarryDos 1.0 for mz2000
+1. ターゲットOSとエミュレータ環境 : TARGET OS & Emulator
+ GUEST OS: CarryDos 1.0 for mz2000
+ EMULATOR: EmuZ-2000( 武田俊哉版 http://takeda-toshiya.my.coocan.jp/ )
 
 2. コンパイラバージョン : SDCC version
   SDCC : mcs51/z80/z180/r2k/r3ka/gbz80/tlcs90/ds390/TININative/ds400/hc08/s08/stm8 3.8.0 #10562 (Linux)
@@ -18,4 +19,32 @@ KMBASIC2000 は以下の開発基盤により作成されています。
   ソースを参照してください。
   see crt/crt.asm
 
+4. 使用方法
+  ビルドは gnu make を使用します。 make とタイプしてください。
+  release.ihx という名前のファイルが作成されます。これはインテレックス形式のヘキサダンプファイルです。
+  このファイルを以下の手順にてEMUZから起動します。
+  
+  4.1 TS2000 | Carry Dos の IPL起動とファイルの配置
+    起動ディレクトリに release.ihx を配置してください。
+    エミュレータを起動してください。
+    エミュレータで最初にすべきことはTS2000のIPL起動です。
+    起動画面でコマンドプロンプトが表示されている事を確認してください。
+    
+  4.2 インテレックス形式ファイルの起動
+    4.2.1 エミュレータのメニューを以下の様に操作してください。
+          Control | Debug Main CPU 　　　 
+          これにより、デバッグウインドウを起動します。
+    4.2.2 デバッグウインドウにて以下の様にキータイプしてください。
+          n release.ihx <enter>
+          l <enter>
+          q <enter>
+    4.2.3 起動
+          TS2000のコマンドプロンプトより、以下の様にキータイプしてください。
+          J1500 <enter>
+          
+          
+          
+    
+    
+  
 
